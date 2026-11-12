@@ -111,6 +111,31 @@ npx playwright test tests/create-case-job-sync.spec.js --headed
 
 `npm test` runs only the role-navigation POT suite; use `npx playwright test` (or `npm run test:all`) for all configured tests.
 
+### Run a named suite
+
+The following npm scripts run commonly used suites:
+
+| Suite | Command |
+|---|---|
+| Check Cases, Jobs, and Sync status (headed) | `npm run test:status` |
+| Case and Job end-to-end flow (headed) | `npm run test:e2e` |
+| Create a Case (headed) | `npm run test:case` |
+| Create a Job (headed) | `npm run test:job` |
+| Create or invite a user (headed) | `npm run test:create-user` or `npm run test:invite-user` |
+| Upload artifacts (headed) | `npm run test:artifacts` |
+| Sync Generator upload (headed) | `npm run test:syncgen` |
+| Utilities workflow (headed) | `npm run test:utilities` |
+| Dynamic navigation (headless) | `npm run test:dynamic` |
+| Role navigation/POT (headless) | `npm run test:pot` |
+
+To run a specific suite in the interactive runner, start Playwright UI and select the suite:
+
+```powershell
+npm run test:ui
+```
+
+The UI opens without running tests automatically. Select a test and click Run. Tests still need the configured application, credentials, and external assets they require.
+
 Generate and open the HTML report:
 
 ```powershell
