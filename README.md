@@ -111,6 +111,8 @@ npx playwright test tests/create-case-job-sync.spec.js --headed
 
 `npm test` runs only the role-navigation POT suite; use `npx playwright test` (or `npm run test:all`) for all configured tests.
 
+POT screenshots are grouped by test-suite filename, then role, to avoid different suites overwriting one another. For example, role-navigation screenshots are saved under `pot/role-navigation-pot/admin/`, while Utilities workflow screenshots are saved under `pot/utilities-flow/utilities/`.
+
 ### Run a named suite
 
 The following npm scripts run commonly used suites:

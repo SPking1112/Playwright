@@ -83,7 +83,8 @@ test.describe('Negative Testing: Login Failure', () => {
 
     // 5. Capture POT Screenshot of the failure state
     console.log('[Step 4] Capturing Proof of Testing (POT) screenshot for negative test...');
-    const potDir = path.resolve(process.cwd(), 'pot', 'negative');
+    const suiteName = app.getSuiteName();
+    const potDir = path.resolve(process.cwd(), 'pot', suiteName, 'negative');
     if (!fs.existsSync(potDir)) {
       fs.mkdirSync(potDir, { recursive: true });
     }
@@ -98,8 +99,8 @@ test.describe('Negative Testing: Login Failure', () => {
     console.log(`Negative Test PASSED: System successfully rejected invalid login!`);
     console.log(`- API Status: HTTP ${loginResponseStatus || 'Blocked/Rejected'}`);
     console.log(`- UI Error Toast: "${capturedErrorMessage}"`);
-    console.log(`- POT Screenshot saved at: pot/negative/login_failed_proof.png`);
-    console.log(`- POT Admin copy saved at: pot/admin/admin_negative_login_failed.png`);
+    console.log(`- POT Screenshot saved at: pot/${suiteName}/negative/login_failed_proof.png`);
+    console.log(`- POT Admin copy saved at: pot/${suiteName}/admin/admin_negative_login_failed.png`);
     console.log(`========================================\n`);
   });
 });

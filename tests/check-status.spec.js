@@ -53,15 +53,18 @@ test.describe('Check Status Automation', () => {
 
     const jobRows = page.locator('table tbody tr');
     const jobCount = await jobRows.count().catch(() => 0);
+    const jobHeaders = await page.getByRole('columnheader').allTextContents();
+    const statusColumnIndex = jobHeaders.findIndex((header) => header.trim() === 'Status');
+    expect(statusColumnIndex, 'Jobs table must include a Status column').toBeGreaterThanOrEqual(0);
     console.log(`- Total Jobs Found on first page: ${jobCount}`);
 
     const jobSample = [];
     for (let i = 0; i < Math.min(jobCount, 5); i++) {
       const row = jobRows.nth(i);
       const rowText = await row.innerText().catch(() => '');
-      const statusBadge = await row.locator('.badge, [class*="badge"]').first().innerText().catch(() => 'N/A');
+      const status = (await row.getByRole('cell').nth(statusColumnIndex).innerText()).trim() || 'N/A';
       const parts = rowText.split('\t').map(s => s.trim()).filter(Boolean);
-      jobSample.push({ index: i + 1, name: parts[0] || 'Unknown', status: statusBadge });
+      jobSample.push({ index: i + 1, name: parts[0] || 'Unknown', status });
     }
     if (jobSample.length > 0) {
       console.log('  Recent Jobs & Statuses:');
@@ -84,7 +87,7 @@ test.describe('Check Status Automation', () => {
 
     console.log('\n========================================');
     console.log('Status Audit Completed Successfully!');
-    console.log('Screenshots saved in pot/admin/:');
+    console.log('Screenshots saved in pot/check-status/admin/:');
     console.log('- admin_status_cases.png');
     console.log('- admin_status_jobs.png');
     console.log('- admin_status_sync_queue.png');

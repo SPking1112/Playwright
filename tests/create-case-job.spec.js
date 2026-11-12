@@ -161,11 +161,13 @@ test.describe('Create Case and Job Flow with Sync Gen Screenshot', () => {
 
     // 5. Open Sync Generator from Job Details page
     console.log('[Step 4] Opening Sync Generator for this job...');
-    const syncGenCard = page.locator('div:has-text("Sync Generator")').last();
-    await syncGenCard.scrollIntoViewIfNeeded().catch(() => {});
-
     const openSyncBtn = page.getByRole('button', { name: /open sync generator|set up sync job|create sync job/i }).first();
-    await expect(openSyncBtn).toBeVisible({ timeout: 15_000 });
+    const syncAccessRequired = page.getByText(/Contact your administrator to request access/).first();
+    await expect(openSyncBtn.or(syncAccessRequired)).toBeVisible({ timeout: 15_000 });
+    test.skip(
+      await syncAccessRequired.isVisible(),
+      'Sync Generator access is not provisioned for this organization.',
+    );
     await openSyncBtn.click();
 
     await page.waitForURL(/\/sync-generator\/[^/]+\/setup/, { timeout: 25_000 });
@@ -177,7 +179,7 @@ test.describe('Create Case and Job Flow with Sync Gen Screenshot', () => {
 
     console.log('\n========================================');
     console.log('Create Case & Job Flow Completed Successfully!');
-    console.log('Screenshots saved in pot/admin/:');
+    console.log('Screenshots saved in pot/create-case-job/admin/:');
     console.log('- admin_dashboard.png');
     console.log('- admin_cases_list.png');
     console.log('- admin_case_created.png');

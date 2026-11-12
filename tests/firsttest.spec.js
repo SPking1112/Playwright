@@ -5,7 +5,7 @@ const { test, expect } = require('@playwright/test');
 const roles = [
     {
         name: 'OrgAdmin',
-        badge: 'Admin',
+        badge: 'Organization Admin',
         email: process.env.ORGADMIN_EMAIL,
         password: process.env.ORGADMIN_PASSWORD
     },

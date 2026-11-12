@@ -71,7 +71,8 @@ test.describe('Utilities End-to-End Workflow', () => {
       return body.data ?? body;
     };
 
-    const potDir = path.resolve(process.cwd(), 'pot', 'utilities');
+    const suiteName = appPage.getSuiteName();
+    const potDir = path.resolve(process.cwd(), 'pot', suiteName, 'utilities');
     if (!fs.existsSync(potDir)) {
       fs.mkdirSync(potDir, { recursive: true });
     }
@@ -81,7 +82,7 @@ test.describe('Utilities End-to-End Workflow', () => {
       const filename = `${stageName}.png`;
       const fullPath = path.join(potDir, filename);
       await page.screenshot({ path: fullPath, fullPage: false });
-      console.log(`[POT Captured] pot/utilities/${filename}`);
+      console.log(`[POT Captured] pot/${suiteName}/utilities/${filename}`);
       return fullPath;
     };
 
@@ -818,20 +819,20 @@ test.describe('Utilities End-to-End Workflow', () => {
     console.log(`\n======================================================`);
     console.log(`🎉 ALL STAGES PASSED SUCCESSFULLY!`);
     console.log(`Proof of Testing (POT) Screenshots saved in:`);
-    console.log(`  pot/utilities/01_platform_admin_login.png`);
-    console.log(`  pot/utilities/02_org_created.png`);
-    console.log(`  pot/utilities/03_admin_user_created.png`);
-    console.log(`  pot/utilities/04_user_invited.png`);
-    console.log(`  pot/utilities/05_product_instances_created.png`);
-    console.log(`  pot/utilities/06_user_seats_assigned.png`);
-    console.log(`  pot/utilities/07_platform_admin_logout.png`);
-    console.log(`  pot/utilities/08_new_user_login.png`);
-    console.log(`  pot/utilities/09_case_created.png`);
-    console.log(`  pot/utilities/10_job_created.png`);
-    console.log(`  pot/utilities/11_sync_job_processing.png`);
-    console.log(`  pot/utilities/12_publish_inputs_uploaded.png`);
-    console.log(`  pot/utilities/13_publish_job_processed.png`);
-    console.log(`  pot/utilities/14_new_user_logout.png`);
+    console.log(`  pot/${suiteName}/utilities/01_platform_admin_login.png`);
+    console.log(`  pot/${suiteName}/utilities/02_org_created.png`);
+    console.log(`  pot/${suiteName}/utilities/03_admin_user_created.png`);
+    console.log(`  pot/${suiteName}/utilities/04_user_invited.png`);
+    console.log(`  pot/${suiteName}/utilities/05_product_instances_created.png`);
+    console.log(`  pot/${suiteName}/utilities/06_user_seats_assigned.png`);
+    console.log(`  pot/${suiteName}/utilities/07_platform_admin_logout.png`);
+    console.log(`  pot/${suiteName}/utilities/08_new_user_login.png`);
+    console.log(`  pot/${suiteName}/utilities/09_case_created.png`);
+    console.log(`  pot/${suiteName}/utilities/10_job_created.png`);
+    console.log(`  pot/${suiteName}/utilities/11_sync_job_processing.png`);
+    console.log(`  pot/${suiteName}/utilities/12_publish_inputs_uploaded.png`);
+    console.log(`  pot/${suiteName}/utilities/13_publish_job_processed.png`);
+    console.log(`  pot/${suiteName}/utilities/14_new_user_logout.png`);
     console.log(`======================================================\n`);
   });
 });

@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { expect } = require('@playwright/test');
+const { expect, test } = require('@playwright/test');
 
 class AppPage {
   constructor(page) {
@@ -18,6 +18,10 @@ class AppPage {
       .replace(/&/g, 'and')
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '');
+  }
+
+  getSuiteName() {
+    return path.basename(test.info().file, '.spec.js');
   }
 
   /**
@@ -38,13 +42,14 @@ class AppPage {
   }
 
   /**
-   * Capture screenshot organized into pot/<role>/<rolename>_<pagename>.png
+   * Capture screenshot organized into pot/<suite>/<role>/<rolename>_<pagename>.png
    * Automatically waits until all API calls and loaders are completed before capturing.
    */
   async takeScreenshot(roleName, pageName) {
+    const suiteName = this.getSuiteName();
     const cleanRole = this.sanitizeSlug(roleName);
     const cleanPage = this.sanitizeSlug(pageName) || 'page';
-    const potDir = path.resolve(process.cwd(), 'pot', cleanRole);
+    const potDir = path.resolve(process.cwd(), 'pot', suiteName, cleanRole);
 
     if (!fs.existsSync(potDir)) {
       fs.mkdirSync(potDir, { recursive: true });
@@ -57,7 +62,7 @@ class AppPage {
     await this.waitForPageContent();
 
     await this.page.screenshot({ path: fullPath, fullPage: false });
-    console.log(`[POT Screenshot] Saved: pot/${cleanRole}/${fileName}`);
+    console.log(`[POT Screenshot] Saved: pot/${suiteName}/${cleanRole}/${fileName}`);
     return fullPath;
   }
 

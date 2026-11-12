@@ -309,7 +309,7 @@ test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', (
     console.log(`- Matching Base Name: ${matchingBaseName}`);
     console.log(`- Transcript: ${transcriptFileName}`);
     console.log(`- Media: ${mediaFileName}`);
-    console.log('All screenshots saved in pot/admin/:');
+    console.log('All screenshots saved in pot/create-case-job-sync/admin/:');
     console.log('- admin_case_created.png');
     console.log('- admin_job_created.png');
     console.log('- admin_sync_gen_setup.png');

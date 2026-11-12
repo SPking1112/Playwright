@@ -6,7 +6,7 @@ const { AppPage } = require('../pages/app.page');
 /**
  * Role definitions matching the credentials in .env.
  * Output screenshots will be organized as:
- * pot/<rolename>/<rolename>_<pagename>.png (e.g. pot/admin/admin_dashboard.png)
+ * pot/role-navigation-pot/<rolename>/<rolename>_<pagename>.png
  */
 const roles = [
   {

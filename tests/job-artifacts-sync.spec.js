@@ -133,7 +133,7 @@ test.describe('Job Details Artifacts Upload & Sync Gen Matching Files Flow (With
     console.log(`- Uploaded Media: ${mediaFileName}`);
     console.log(`- Verified Base Name Match: "${matchingPair.baseName}"`);
     console.log('- Status: Job staged and ready for alignment, NOT processed.');
-    console.log('Screenshots saved in pot/admin/:');
+    console.log('Screenshots saved in pot/job-artifacts-sync/admin/:');
     console.log('- admin_job_details.png');
     console.log('- admin_job_artifacts_uploaded.png');
     console.log('- admin_sync_gen_setup.png');
