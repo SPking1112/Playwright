@@ -1,0 +1,11 @@
+node_modules/
+test-results/
+fixtures/*
+!fixtures/.gitkeep
+POT/
+Playwright/
+playwright-report/
+blob-report/
+.env
+.env.*
+.auth/

@@ -1,0 +1,153 @@
+const path = require('path');
+const { expect } = require('@playwright/test');
+
+class JobsPage {
+  constructor(page) {
+    this.page = page;
+    this.addJobButton = page.getByRole('button', { name: /new job|add job|create job/i }).first();
+    this.jobDialog = page.locator('div[role="dialog"]:has-text("Create Job")').first();
+    this.jobNameInput = this.jobDialog.locator('#job-name').or(this.jobDialog.getByLabel(/job name/i)).first();
+    this.categorySelect = this.jobDialog.locator('#job-category');
+    this.jobRefInput = this.jobDialog.locator('#job-ref').or(this.jobDialog.getByLabel(/client job ref/i)).first();
+    this.submitJobButton = this.jobDialog.getByRole('button', { name: /^Create Job$/i }).or(this.jobDialog.getByRole('button', { name: /create job/i })).first();
+  }
+
+  async open() {
+    await this.page.goto('/jobs');
+  }
+
+  async openCreateDialog() {
+    await expect(this.addJobButton).toBeVisible({ timeout: 15_000 });
+    await this.addJobButton.click();
+    await expect(this.jobDialog).toBeVisible({ timeout: 10_000 });
+    await expect(this.jobNameInput).toBeVisible({ timeout: 5000 });
+  }
+
+  async createJob(jobData) {
+    await this.openCreateDialog();
+
+    await this.jobNameInput.fill(jobData.name);
+
+    if (await this.categorySelect.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await this.categorySelect.click();
+      const option = this.page.locator('[role="option"]:has-text("Deposition"), [role="option"]').first();
+      await expect(option).toBeVisible({ timeout: 3000 });
+      await option.click();
+    }
+
+    if (jobData.clientJobRef && (await this.jobRefInput.isVisible({ timeout: 3000 }).catch(() => false))) {
+      await this.jobRefInput.fill(jobData.clientJobRef);
+    }
+
+    await expect(this.submitJobButton).toBeEnabled({ timeout: 10_000 });
+    await this.submitJobButton.click();
+
+    // Dynamically wait for dialog to close
+    await this.jobDialog.waitFor({ state: 'detached', timeout: 12_000 });
+
+    // Open Job Details page if not already navigated
+    if (!this.page.url().includes('/jobs/')) {
+      const jobRow = this.page.locator(`table tbody tr:has-text("${jobData.name}")`).first();
+      await expect(jobRow).toBeVisible({ timeout: 15_000 });
+      await jobRow.click();
+    }
+
+    await this.page.waitForURL(/\/jobs\/[0-9a-fA-F-]+/, { timeout: 25_000 });
+  }
+
+  async uploadArtifacts(filePaths) {
+    const artifactFiles = Array.isArray(filePaths) ? filePaths : [filePaths];
+    const artifactsCard = this.page.locator('div:has-text("Artifacts")').last();
+    await artifactsCard.scrollIntoViewIfNeeded().catch(() => {});
+
+    const fileInput = this.page.locator('input[type="file"]').last();
+    await expect(fileInput).toBeAttached({ timeout: 10_000 });
+    await fileInput.setInputFiles(artifactFiles);
+
+    // Wait dynamically for upload spinners to finish rather than sleeping
+    const spinner = this.page.locator('.animate-spin').first();
+    if (await spinner.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await spinner.waitFor({ state: 'detached', timeout: 30_000 }).catch(() => {});
+    }
+  }
+
+  async openSyncGenerator() {
+    const syncGenCard = this.page.locator('div:has-text("Sync Generator")').last();
+    await syncGenCard.scrollIntoViewIfNeeded().catch(() => {});
+
+    const openSyncBtn = this.page.getByRole('button', { name: /open sync generator|set up sync job|create sync job/i }).first();
+    await expect(openSyncBtn).toBeVisible({ timeout: 15_000 });
+    await openSyncBtn.click();
+
+    await this.page.waitForURL(/\/sync-generator\/[^/]+\/setup/, { timeout: 25_000 });
+  }
+
+  async importArtifactsViaShowArtifacts(maxCount = 2) {
+    const exhibitsSection = this.page.locator('div:has-text("Exhibits")').last();
+    await exhibitsSection.scrollIntoViewIfNeeded().catch(() => {});
+
+    const showArtifactsBtn = exhibitsSection.getByRole('button', { name: /show artifacts/i }).first();
+    await expect(showArtifactsBtn).toBeVisible({ timeout: 10_000 });
+    await showArtifactsBtn.click();
+
+    const artifactsDialog = this.page.locator('div[role="dialog"]:has-text("Select Exhibits from Artifacts"), div[role="dialog"]:has-text("Artifacts")').first();
+    await expect(artifactsDialog).toBeVisible({ timeout: 10_000 });
+
+    // Wait for candidate artifacts loader to detach
+    await artifactsDialog.locator('text=Loading artifacts').waitFor({ state: 'detached', timeout: 10_000 }).catch(() => {});
+
+    const addButtons = artifactsDialog.getByRole('button', { name: /^Add$/i });
+    const count = await addButtons.count();
+    const toAdd = Math.min(count, maxCount);
+
+    for (let i = 0; i < toAdd; i++) {
+      const currentAddBtn = artifactsDialog.getByRole('button', { name: /^Add$/i }).first();
+      if (await currentAddBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await currentAddBtn.click();
+        // Wait for the button state to update
+        await this.page.waitForLoadState('domcontentloaded');
+      }
+    }
+
+    const closeBtn = artifactsDialog.getByRole('button', { name: /^Close$/i }).or(artifactsDialog.locator('button[aria-label="Close"]')).first();
+    await closeBtn.click().catch(() => this.page.keyboard.press('Escape'));
+    await artifactsDialog.waitFor({ state: 'detached', timeout: 8000 }).catch(() => this.page.keyboard.press('Escape'));
+  }
+
+  async uploadTranscript(transcriptPath) {
+    const transcriptInput = this.page.locator(
+      'input[type="file"][accept*=".txt"], input[type="file"][accept*=".mdb"], input[type="file"][accept*=".ytg"], input[type="file"][accept*=".xmef"], input[type="file"]'
+    ).first();
+    await expect(transcriptInput).toBeAttached({ timeout: 15_000 });
+    await transcriptInput.setInputFiles(transcriptPath);
+
+    // If "Set Transcript Lines" dialog appears, confirm defaults or close it cleanly
+    const lineModal = this.page.locator('div[role="dialog"]:has-text("Set Transcript Lines")').first();
+    if (await lineModal.isVisible({ timeout: 5000 }).catch(() => false)) {
+      const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults|save|confirm|close/i }).first();
+      if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await confirmBtn.click().catch(() => {});
+      } else {
+        await this.page.keyboard.press('Escape');
+      }
+      await lineModal.waitFor({ state: 'detached', timeout: 5000 }).catch(() => this.page.keyboard.press('Escape'));
+    }
+  }
+
+  async uploadMedia(mediaPath) {
+    const mediaInput = this.page.locator('input[type="file"][accept*=".mp4"], input[type="file"][accept*=".mov"], input[type="file"][accept*=".mpg"]').first();
+    await expect(mediaInput).toBeAttached({ timeout: 15_000 });
+    await mediaInput.setInputFiles(mediaPath);
+
+    // Dynamically wait until upload progress finishes
+    const cancelBtn = this.page.locator('button[title="Cancel upload"]').first();
+    if (await cancelBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await cancelBtn.waitFor({ state: 'detached', timeout: 0 });
+    }
+
+    const finalizedSegment = this.page.locator('button[title="Remove media"]').first();
+    await expect(finalizedSegment).toBeVisible({ timeout: 60_000 });
+  }
+}
+
+module.exports = { JobsPage };
