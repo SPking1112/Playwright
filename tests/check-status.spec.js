@@ -28,7 +28,7 @@ test.describe('Check Status Automation', () => {
     const caseDetails = (await firstCaseRow.innerText()).replace(/\s+/g, ' ').trim();
     console.log(`[Status Check] Opening first case: ${caseDetails}`);
 
-    const caseLink = firstCaseRow.locator('a, button').first();
+    const caseLink = firstCaseRow.locator('a').first();
     if (await caseLink.isVisible().catch(() => false)) {
       await caseLink.click();
     } else {
@@ -44,7 +44,7 @@ test.describe('Check Status Automation', () => {
     const jobDetails = (await firstJobRow.innerText()).replace(/\s+/g, ' ').trim();
     console.log(`[Status Check] Opening first job in case: ${jobDetails}`);
 
-    const jobLink = firstJobRow.locator('a, button').first();
+    const jobLink = firstJobRow.locator('a').first();
     if (await jobLink.isVisible().catch(() => false)) {
       await jobLink.click();
     } else {
