@@ -1,185 +1,133 @@
-# Stenograph One UI — Playwright Test Automation
+# Playwright Test Project
 
-Automated end-to-end testing suite for the **Stenograph One UI** web application, powered by [Playwright](https://playwright.dev/).
+End-to-end tests for the Stenograph One web application, implemented with Playwright.
 
----
+## Requirements
 
-## ⚡ Quick Start in 3 Steps
+- Node.js 20 or newer. The locked Playwright test package requires Node.js 20+.
+- npm 9 or newer to work with this repository's version 3 lockfile.
+- Access to a running application under test and the appropriate test accounts.
+- External media, transcript, and exhibit files configured through `TEST_ASSETS_DIR`.
 
-### Step 1: Configure and Start the Target
-All test navigation and helper scripts use `BASE_URL` from this project's `.env`. There is no automatic URL fallback. For local testing, start the frontend:
+Check installed versions with:
 
 ```powershell
-# In terminal 1 (Frontend directory)
-cd 'd:\Work\Frontend\Stenograph%20One%20UI'
-npm run dev
+node --version
+npm --version
 ```
-> When the local frontend is running, it should be accessible at `http://localhost:8080`.
 
----
+## Clone and install
 
-### Step 2: Verify Your `.env` Credentials
-In this folder (`d:\Work\playwright`), open `.env` and verify your credentials and base URL:
+```powershell
+git clone https://github.com/SPking1112/Playwright.git
+Set-Location Playwright
+npm install
+npx playwright install
+```
+
+`npx playwright install` installs the browser binaries used by the tests.
+
+## Configure the environment
+
+Create a local `.env` from the checked-in template:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edit `.env` and provide values for:
+
+- `BASE_URL`: the absolute HTTP(S) URL of the application under test. `env.js` requires this value. Remote targets are blocked unless `ALLOW_REMOTE_TESTS=true` is explicitly set.
+- `ORGADMIN_EMAIL` and `ORGADMIN_PASSWORD`: required by Organization Admin tests.
+- `PLATFORM_EMAIL` and `PLATFORM_PASSWORD`: required by Platform Admin tests.
+- `MANAGER_EMAIL` and `MANAGER_PASSWORD`, `BILLING_EMAIL` and `BILLING_PASSWORD`, `REPORTER_EMAIL` and `REPORTER_PASSWORD`, `MEMBER_EMAIL` and `MEMBER_PASSWORD`: required by suites that test those roles.
+- `TEST_ASSETS_DIR`: absolute path to the external asset root described below.
+
+The `.env.example` intentionally leaves `BASE_URL` and credentials blank. Use only approved test accounts and a test environment; several suites create or modify application data. Optional navigation smoke-test settings are `NAVIGATION_LABEL` and `NAVIGATION_PATH`.
+
+## External test assets
+
+Binary assets are not stored in this repository or under `fixtures/`. Keep the asset root outside the repository and configure `TEST_ASSETS_DIR` to point to it. On Windows, for example, set the value in `.env` to the absolute path where you keep these files:
 
 ```env
-BASE_URL=http://localhost:8080
-
-# Organization Admin credentials (used for Case/Job creation and uploads)
-ORGADMIN_EMAIL=<set-in-.env>
-ORGADMIN_PASSWORD=<set-in-.env>
-
-# Platform Admin credentials (used for system-level discovery)
-PLATFORM_EMAIL=<set-in-.env>
-PLATFORM_PASSWORD=<set-in-.env>
-```
-Playwright and the standalone helper scripts read `BASE_URL` from this project's `.env` file and require it to be set. If the configured target is remote, set `ALLOW_REMOTE_TESTS=true` in `.env` to explicitly allow the run. Tests can create or modify data in the configured environment.
-
----
-
-### Step 3: Run the Tests
-In your test directory (`d:\Work\playwright`), run any test command:
-
-```powershell
-# Run dynamic page discovery (automatically crawls and verifies all pages)
-npm run test:dynamic
-
-# Run the End-to-End Case & Job creation workflow (with browser window visible)
-npm run test:e2e
-
-# Run the full Proof of Testing (POT) role screenshot suite
-npm test
+TEST_ASSETS_DIR=D:\path\to\external-assets
 ```
 
----
-
-## 📁 Stored Test Data (`fixtures/data/`)
-
-All form input data for creating **Cases** and **Jobs** is stored in:
-👉 **[`fixtures/data/case-job-data.json`](file:///d:/Work/playwright/fixtures/data/case-job-data.json)**
-
-You can edit this JSON file whenever you want to change test values:
-
-```json
-{
-  "case": {
-    "name": "Stenograph Test Case",
-    "namePrefix": "Case_PW",
-    "description": "Automated E2E test case for Stenograph One UI",
-    "product": "Stenograph One",
-    "matterNumber": "MATTER-2026-001"
-  },
-  "job": {
-    "name": "Deposition Proceeding",
-    "namePrefix": "Job_PW",
-    "category": "Deposition",
-    "clientJobRef": "PW-REF-1001",
-    "clientJobRefPrefix": "PW-REF",
-    "witnessName": "John Sullivan",
-    "notes": "Automated transcript alignment and sync generation test"
-  },
-  "files": {
-    "transcript": "fixtures/transcripts/Sullivan.txt",
-    "media": "fixtures/media/Sullivan1.mp4"
-  }
-}
-```
-
-### How the Test Uses This Data:
-- **Unique Name Generation**: To avoid duplicate name errors when tests are re-run, the helper `fixtures/data/index.js` automatically appends a unique timestamp suffix (e.g. `Case_PW_4821` and `Job_PW_4821`).
-- **File Attachments**: The test automatically pulls the transcript and media files directly from the `fixtures/` directory.
-
----
-
-## 🧪 Test Suites Overview
-
-### 1. Dynamic Page Discovery (`npm run test:dynamic`)
-- **File**: `tests/dynamic-navigation.spec.js`
-- **What it does**: Logs in dynamically, inspects the sidebar navigation for that user's role without hardcoding any URLs or labels, navigates to every available page, verifies that the route and headers load, and prints a summary table.
-
-### 2. End-to-End Case & Job Creation (`npm run test:e2e`)
-- **File**: `tests/create-case-job-sync.spec.js`
-- **What it does**:
-  1. Signs in as Organization Admin.
-  2. Navigates to **Cases** and fills the **Create Case** dialog using test data.
-  3. Opens the newly created Case and clicks **Add Job**.
-  4. Fills the **Create Job** dialog (Category, Client Job Ref) using test data.
-  5. Navigates into the Job Details page and clicks **Sync Generator**.
-  6. Uploads `fixtures/transcripts/Sullivan.txt` and `fixtures/media/Sullivan1.mp4`.
-  7. Verifies transcript alignment and initiates sync processing.
-
-### 3. Role Proof of Testing (POT) Screenshots (`npm test`)
-- **File**: `tests/role-navigation-pot.spec.js`
-- **What it does**: Iterates through each user role in `.env` (Platform Admin, Organization Admin, Manager, Billing, Reporter, Member), discovers all accessible sidebar menus, and saves high-resolution screenshot evidence into `pot/<role>/`.
-
----
-
-## 📜 All Available Commands
-
-### ⚡ Quick Modular Execution
-
-| Task | Command | Description | Browser Visible? |
-|------|---------|-------------|:----------------:|
-| **Utilities Lifecycle** | `npm run test:utilites` | Platform Admin -> Org -> User & Invite -> Products (Sync/Capture/Publish) -> Assign User -> Handover -> Sync -> Publish -> Logout | **Yes** |
-| **Whole S1 Suite** | `npm run s1` or `npm run test:s1:all` | Runs the complete end-to-end flow (Case, Job, Uploads, Alignment) | **Yes** |
-| **Interactive Menu** | `npm run s1:menu` or `npm run test:s1:menu` | Interactive CLI menu: pick a task to run | **Yes** |
-| **Create Case** | `npm run test:case` | Creates a new Case only and verifies it | **Yes** |
-| **Create Job** | `npm run test:job` | Creates a Job inside a Case and verifies it | **Yes** |
-| **Invite User** | `npm run test:invite-user` | Invites a user via `/invitations` with role assignment | **Yes** |
-| **Create User** | `npm run test:create-user` | Direct user creation via `/users` dialog | **Yes** |
-| **Check Status** | `npm run test:status` | Audits statuses of Cases, Jobs, and Sync Queue | **Yes** |
-| **Negative: Login Fail** | `npm run login:fail` | Submits wrong credentials, asserts rejection, and captures POT screenshot | **Yes** |
-
-### 🛠️ Additional Specialized Commands
-
-| Command | What it Does | Browser Visible? |
-|---------|--------------|:----------------:|
-| `npm run test:case-job` | Creates Case, Job & captures Sync Gen setup screenshots | **Yes** |
-| `npm run test:artifacts` | Uploads 2 exhibits in Job Details & imports via Show Artifacts in Sync Gen | **Yes** |
-| `npm run test:syncgen` | Uploads transcript/media to an existing job | **Yes** |
-| `npm run test:dynamic` | Crawls and navigates all pages dynamically | No (headless) |
-| `npm run test:dynamic:headed` | Crawls all pages dynamically with visible browser | **Yes** |
-| `npm run discover` | Standalone Node script for quick page discovery | No |
-| `npm test` | Runs the full POT role navigation suite | No (headless) |
-| `npm run test:pot:headed` | Runs POT role suite with visible browser | **Yes** |
-| `npm run test:pot:admin` | Runs POT only for Organization Admin | **Yes** |
-| `npm run test:ui` | Opens the interactive Playwright UI dashboard | **Yes** |
-| `npm run test:report` | Opens the HTML test report in your browser | **Yes** |
-
----
-
-## 📂 Project Structure
+The external directory must have this structure:
 
 ```text
-d:\Work\playwright\
-├── fixtures/                     # Test data & test files
-│   ├── data/
-│   │   ├── case-job-data.json    # Centralized form data (Case Name, Job Name, etc.)
-│   │   └── index.js              # Helper to load and generate unique test data
-│   ├── exhibits/                 # Exhibit test files (2 PDF exhibits)
-│   ├── media/                    # Video test files (Sullivan1.mp4)
-│   └── transcripts/              # Transcript test files (Sullivan.txt)
-├── pages/                        # Page Object Model (POM) classes
-│   ├── app.page.js               # Common app actions (navigation, screenshots)
-│   └── login.page.js             # Authentication, MFA/Dev OTP auto-handling
-├── pot/                          # Proof of Testing screenshots (organized by role)
-├── scripts/                      # Helper CLI tools
-│   └── run-dynamic-discovery.js  # Standalone crawler
-├── tests/                        # Test spec files
-│   ├── create-case-job-sync.spec.js # Full E2E Case & Job creation workflow
-│   ├── dynamic-navigation.spec.js   # Dynamic discovery & crawl
-│   ├── role-navigation-pot.spec.js  # Role navigation & POT capture
-│   ├── sync-gen-upload.spec.js      # Sync Gen upload test
-│   └── auth-navigation.spec.js      # Single-route smoke test
-├── .env                          # Local credentials & BASE_URL
-├── package.json                  # NPM scripts & dependencies
-└── playwright.config.js          # Playwright configuration
+<TEST_ASSETS_DIR>\
+├── media\
+├── transcripts\
+└── exhibits\
 ```
 
----
+Prepare the files in the matching folders:
 
-## ❓ Troubleshooting & Tips
+- `transcripts\`: supported transcript files such as `.txt`, `.mdb`, `.ytg`, or `.xmef`. `Sullivan.txt` is preferred when present.
+- `media\`: supported media files such as `.mp4`, `.mov`, `.mpg`, `.mpeg`, `.wav`, `.mp3`, `.wma`, `.m4a`, or `.sgmca`. `Sullivan1.mp4` is preferred when present; `sample_video.mp4` is an optional faster alternative for the Utilities flow.
+- `exhibits\`: supported exhibit files such as `.pdf`, `.jpg`, `.jpeg`, `.png`, `.tif`, or `.tiff`. The artifact-upload suite requires at least two; the Utilities publish flow requires at least one.
 
-- **Connection Error (`ERR_CONNECTION_REFUSED`)**: Make sure your local Vite frontend is running in another terminal (`cd 'd:\Work\Frontend\Stenograph%20One%20UI'; npm run dev`).
-- **MFA / Dev OTP Prompt**: The `LoginPage` class automatically extracts the 6-digit Dev OTP code shown on the screen and types it for you.
-- **Large File Upload Wait**: The sample video file (`Sullivan1.mp4`) is ~920MB. The E2E test timeout is set to 7.5 minutes to allow sufficient upload and processing time.
-- **Viewing Screenshots**: Screenshots captured during testing are automatically saved in `pot/<role>/` (e.g. `pot/admin/` and `pot/dynamic_platform/`).
+Matching-file tests require a transcript and media file with the same base filename. The helper prefers a pair matching `DYNAMIC_PAIR_NAME` or the current job name when that pair exists; otherwise it selects an available matching pair. The existing `eberline.txt` and `eberline.mpg` names are the documented default pair.
+
+The asset helper fails with a clear error if `TEST_ASSETS_DIR`, one of its three directories, or a required asset is missing. It does not search Downloads, repository fixture folders, or generate/stage asset copies.
+
+Never commit media, audio, transcript, or exhibit files to Git. Keep them in an external location and share or provision them separately. `fixtures/data/` contains only test-data definitions and helper code; it is not an asset directory.
+
+## Application-under-test prerequisite
+
+Start the application before running browser tests. For the local Vite target documented in [LOCAL_TARGETS.md](./LOCAL_TARGETS.md), start its frontend in a separate terminal:
+
+```powershell
+Set-Location 'D:\Work\Stenograph%20One%20UI'
+npm run dev
+```
+
+That target is documented at `http://127.0.0.1:8080`. Its frontend proxies authentication and API requests to configured backend services, so login tests also need a local/stub backend or an explicitly approved test backend. Set `BASE_URL` to the chosen target in `.env`.
+
+GitHub Pages can host a static web target, but it does not execute Playwright tests. Run the tests on a machine with Node.js and the Playwright browsers installed, or in a CI runner.
+
+## List and run tests
+
+List tests without executing them:
+
+```powershell
+npx playwright test --list
+```
+
+Run all test files, or a single suite:
+
+```powershell
+npx playwright test
+npx playwright test tests/create-case-job-sync.spec.js
+```
+
+Run all tests in headed mode, or run one suite headed:
+
+```powershell
+npx playwright test --headed
+npx playwright test tests/create-case-job-sync.spec.js --headed
+```
+
+`npm test` runs only the role-navigation POT suite; use `npx playwright test` (or `npm run test:all`) for all configured tests.
+
+Generate and open the HTML report:
+
+```powershell
+npx playwright test --reporter=html
+npx playwright show-report
+```
+
+## Project layout
+
+```text
+fixtures/
+└── data/
+    ├── case-job-data.json   # Form-data definitions and expected asset filenames
+    └── index.js             # Test-data and external-asset path helpers
+pages/                       # Page Object Model classes
+scripts/                     # Helper CLI tools
+tests/                       # Playwright test suites
+.env.example                 # Environment-variable template
+playwright.config.js         # Playwright configuration
+```

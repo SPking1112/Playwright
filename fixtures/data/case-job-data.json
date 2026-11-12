@@ -1,0 +1,39 @@
+{
+  "case": {
+    "name": "Stenograph Test Case",
+    "namePrefix": "Case_PW",
+    "description": "Automated E2E test case for Stenograph One UI",
+    "product": "Stenograph One",
+    "matterNumber": "MATTER-2026-001"
+  },
+  "job": {
+    "name": "Deposition Proceeding",
+    "namePrefix": "Job_PW",
+    "category": "Deposition",
+    "clientJobRef": "PW-REF-1001",
+    "clientJobRefPrefix": "PW-REF",
+    "witnessName": "John Sullivan",
+    "notes": "Automated transcript alignment and sync generation test"
+  },
+  "files": {
+    "transcript": "Sullivan.txt",
+    "media": "Sullivan1.mp4",
+    "exhibits": [
+      "Exhibit_1_DepositionNotice.pdf",
+      "Exhibit_2_MedicalReport.pdf"
+    ]
+  },
+  "user": {
+    "displayNamePrefix": "TestUser",
+    "emailPrefix": "testuser",
+    "emailDomain": "example.com",
+    "password": "Password@123",
+    "role": "Reporter"
+  },
+  "invite": {
+    "displayNamePrefix": "InviteUser",
+    "emailPrefix": "inviteuser",
+    "emailDomain": "example.com",
+    "role": "Reporter"
+  }
+}

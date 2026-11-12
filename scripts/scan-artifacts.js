@@ -2,12 +2,14 @@
 
 /**
  * Artifacts & Sample Scanner for Stenograph One (S1)
- * Scans C:\Users\Admin\Downloads and fixtures/ to classify files by S1 accepted types,
+ * Scans the configured external asset directories by S1 accepted types,
  * and discovers matching transcript + media pairs sharing identical base names.
  */
 
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config();
+const { getTestAssetPaths } = require('../fixtures/data');
 
 // Official S1 Supported File Types (from src/lib/jobArtifacts.ts)
 const ACCEPTED_TYPES = {
@@ -69,8 +71,7 @@ function formatBytes(bytes) {
 }
 
 function runScan() {
-  const userDownloads = path.join(process.env.USERPROFILE || 'C:\\Users\\Admin', 'Downloads');
-  const projectFixtures = path.resolve(__dirname, '..', 'fixtures');
+  const assetPaths = getTestAssetPaths();
 
   console.log('================================================================');
   console.log('      STENOGRAPH ONE (S1) - ARTIFACT & SAMPLE FILE SCANNER      ');
@@ -86,8 +87,9 @@ function runScan() {
   console.log('----------------------------------------------------------------\n');
 
   const scanLocations = [
-    { label: 'Downloads Directory', dir: userDownloads },
-    { label: 'Project Fixtures', dir: projectFixtures },
+    { label: 'External Media', dir: assetPaths.media },
+    { label: 'External Transcripts', dir: assetPaths.transcripts },
+    { label: 'External Exhibits', dir: assetPaths.exhibits },
   ];
 
   const allFoundFiles = [];

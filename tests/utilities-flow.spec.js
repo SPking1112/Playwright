@@ -4,6 +4,7 @@ const fs = require('fs');
 const { test, expect } = require('@playwright/test');
 const { LoginPage } = require('../pages/login.page');
 const { AppPage } = require('../pages/app.page');
+const { getFixtureFilePaths } = require('../fixtures/data');
 const { CasesPage } = require('../pages/cases.page');
 const { JobsPage } = require('../pages/jobs.page');
 
@@ -640,10 +641,8 @@ test.describe('Utilities End-to-End Workflow', () => {
     // STAGE 9: Go to Sync and Process a Job
     // =========================================================================
     await runStage(9, 'Sync Generator: Upload Files and Process Job', async () => {
-      // Pick media & transcript test fixtures
-      const { transcript: transcriptPath, media: fullMediaPath } = require('../fixtures/data').getFixtureFilePaths();
-      const sampleFastVideo = path.resolve(process.cwd(), 'fixtures', 'media', 'sample_video.mp4');
-      const mediaPath = fs.existsSync(sampleFastVideo) ? sampleFastVideo : fullMediaPath;
+      const { transcript: transcriptPath, media: fullMediaPath, sampleVideo } = getFixtureFilePaths();
+      const mediaPath = sampleVideo || fullMediaPath;
 
       console.log(`Using Transcript: ${transcriptPath}`);
       console.log(`Using Media: ${mediaPath}`);
@@ -728,10 +727,8 @@ test.describe('Utilities End-to-End Workflow', () => {
     // STAGE 10: Open Publish, Upload Transcript & Exhibit, and Process Job
     // =========================================================================
     await runStage(10, 'Open Publish, Upload Transcript & Exhibit, and Process Job', async () => {
-      const { transcript: transcriptPath, exhibits: allExhibits } = require('../fixtures/data').getFixtureFilePaths();
-      const exhibitPath = (allExhibits && allExhibits.length > 0)
-        ? allExhibits[0]
-        : path.resolve(process.cwd(), 'fixtures', 'exhibits', 'Exhibit 1.pdf');
+      const { transcript: transcriptPath, exhibits } = getFixtureFilePaths({ requiredExhibits: 1 });
+      const exhibitPath = exhibits[0];
 
       // Navigate back to the Job details page
       console.log(`Navigating to Job details page /jobs/${currentJobId}...`);

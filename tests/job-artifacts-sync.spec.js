@@ -25,14 +25,14 @@ test.describe('Job Details Artifacts Upload & Sync Gen Matching Files Flow (With
 
     const caseData = getCaseFormData();
     const jobData = getJobFormData();
-    const { exhibits } = getFixtureFilePaths();
+    const { exhibits } = getFixtureFilePaths({ requiredExhibits: 2 });
 
     const caseName = caseData.name;
     const jobName = jobData.name;
     const jobRef = jobData.clientJobRef;
 
-    // 1. Dynamically resolve or stage matching transcript and media pair sharing identical base names
-    // (Defaults to the dynamic job name e.g. Job_PW_1042, or any custom DYNAMIC_PAIR_NAME env variable)
+    // 1. Resolve a matching transcript and media pair from the external asset directory
+    // (Prefer DYNAMIC_PAIR_NAME or the current job name when that pair is present)
     const targetDynamicName = process.env.DYNAMIC_PAIR_NAME || jobName;
     const matchingPair = getMatchingFixturePair({ baseName: targetDynamicName });
     const transcriptPath = matchingPair.transcript;
@@ -47,7 +47,7 @@ test.describe('Job Details Artifacts Upload & Sync Gen Matching Files Flow (With
 
     // 2. Ensure we have 2 exhibits
     const twoExhibits = (exhibits || []).slice(0, 2);
-    expect(twoExhibits.length, 'At least 2 exhibit files must exist in fixtures/exhibits').toBe(2);
+    expect(twoExhibits.length, 'At least 2 exhibit files must exist under TEST_ASSETS_DIR/exhibits').toBe(2);
     for (const exPath of twoExhibits) {
       expect(fs.existsSync(exPath), `Exhibit missing at: ${exPath}`).toBeTruthy();
     }
