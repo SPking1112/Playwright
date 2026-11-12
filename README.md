@@ -113,13 +113,15 @@ npx playwright test tests/create-case-job-sync.spec.js --headed
 
 POT screenshots are grouped by test-suite filename, then role, to avoid different suites overwriting one another. For example, role-navigation screenshots are saved under `pot/role-navigation-pot/admin/`, while Utilities workflow screenshots are saved under `pot/utilities-flow/utilities/`.
 
+All suites also capture detected negative states automatically. HTTP 4xx/5xx responses from page, fetch, and XHR requests, along with visible page messages indicating a missing page or denied access (including “Contact your administrator to request access”), are saved under `pot/<suite>/negative/` and reported in the test output. Ordinary static asset failures are ignored.
+
 ### Run a named suite
 
 The following npm scripts run commonly used suites:
 
 | Suite | Command |
 |---|---|
-| Check Cases, Jobs, and Sync status (headed) | `npm run test:status` |
+| Check the first Case/Job, Sync Generator, and Publish (headed) | `npm run test:status` |
 | Case and Job end-to-end flow (headed) | `npm run test:e2e` |
 | Create a Case (headed) | `npm run test:case` |
 | Create a Job (headed) | `npm run test:job` |

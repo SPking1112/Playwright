@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('../fixtures/test');
 const { LoginPage } = require('../pages/login.page');
 const { AppPage } = require('../pages/app.page');
 

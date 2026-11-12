@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('../fixtures/test');
 
 // Load environment variables from .env if present
 if (typeof process.loadEnvFile === 'function') {

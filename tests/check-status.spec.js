@@ -1,96 +1,146 @@
 require('dotenv').config();
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('../fixtures/test');
 const { LoginPage } = require('../pages/login.page');
 const { AppPage } = require('../pages/app.page');
 
 test.describe('Check Status Automation', () => {
-  test('Check and report status of Cases, Jobs, and Sync Processing', async ({ page }) => {
+  test('Org Admin opens the first case and job, then checks Sync Generator and Publish', async ({ page }) => {
     test.setTimeout(90_000);
 
     const login = new LoginPage(page);
     const app = new AppPage(page);
-
     const email = process.env.ORGADMIN_EMAIL;
     const password = process.env.ORGADMIN_PASSWORD;
+    const issues = [];
 
     expect(email, 'ORGADMIN_EMAIL must be set in .env').toBeTruthy();
     expect(password, 'ORGADMIN_PASSWORD must be set in .env').toBeTruthy();
 
-    console.log(`\n========================================`);
-    console.log(`[Task: Check Status] Auditing S1 Status Across Modules`);
-    console.log(`========================================\n`);
-
-    // 1. Sign in
     await login.open();
     await login.login({ email, password });
 
-    // 2. Check Cases
-    console.log('[Module 1: Cases] Inspecting cases list...');
     await app.navigateTo('Cases', '/cases');
     await app.waitForPageContent();
     await app.takeScreenshot('admin', 'status_cases');
 
-    const caseRows = page.locator('table tbody tr');
-    const caseCount = await caseRows.count().catch(() => 0);
-    console.log(`- Total Cases Found on first page: ${caseCount}`);
+    const firstCaseRow = page.locator('table tbody tr').first();
+    await expect(firstCaseRow, 'The Cases table must contain at least one case').toBeVisible({ timeout: 15_000 });
+    const caseDetails = (await firstCaseRow.innerText()).replace(/\s+/g, ' ').trim();
+    console.log(`[Status Check] Opening first case: ${caseDetails}`);
 
-    const caseSample = [];
-    for (let i = 0; i < Math.min(caseCount, 5); i++) {
-      const rowText = await caseRows.nth(i).innerText().catch(() => '');
-      const parts = rowText.split('\t').map(s => s.trim()).filter(Boolean);
-      caseSample.push({ index: i + 1, details: parts.slice(0, 3).join(' | ') });
-    }
-    if (caseSample.length > 0) {
-      console.log('  Recent Cases Sample:');
-      caseSample.forEach(c => console.log(`    [#${c.index}] ${c.details}`));
+    const caseLink = firstCaseRow.locator('a, button').first();
+    if (await caseLink.isVisible().catch(() => false)) {
+      await caseLink.click();
+    } else {
+      await firstCaseRow.click();
     }
 
-    // 3. Check Jobs
-    console.log('\n[Module 2: Jobs] Inspecting jobs list and statuses...');
-    await app.navigateTo('Jobs', '/jobs');
+    await page.waitForURL(/\/cases\/[^/?#]+/, { timeout: 20_000 });
     await app.waitForPageContent();
-    await app.takeScreenshot('admin', 'status_jobs');
+    await app.takeScreenshot('admin', 'status_first_case_details');
 
-    const jobRows = page.locator('table tbody tr');
-    const jobCount = await jobRows.count().catch(() => 0);
-    const jobHeaders = await page.getByRole('columnheader').allTextContents();
-    const statusColumnIndex = jobHeaders.findIndex((header) => header.trim() === 'Status');
-    expect(statusColumnIndex, 'Jobs table must include a Status column').toBeGreaterThanOrEqual(0);
-    console.log(`- Total Jobs Found on first page: ${jobCount}`);
+    const firstJobRow = page.locator('table tbody tr').first();
+    await expect(firstJobRow, 'The selected case must contain at least one job').toBeVisible({ timeout: 15_000 });
+    const jobDetails = (await firstJobRow.innerText()).replace(/\s+/g, ' ').trim();
+    console.log(`[Status Check] Opening first job in case: ${jobDetails}`);
 
-    const jobSample = [];
-    for (let i = 0; i < Math.min(jobCount, 5); i++) {
-      const row = jobRows.nth(i);
-      const rowText = await row.innerText().catch(() => '');
-      const status = (await row.getByRole('cell').nth(statusColumnIndex).innerText()).trim() || 'N/A';
-      const parts = rowText.split('\t').map(s => s.trim()).filter(Boolean);
-      jobSample.push({ index: i + 1, name: parts[0] || 'Unknown', status });
-    }
-    if (jobSample.length > 0) {
-      console.log('  Recent Jobs & Statuses:');
-      jobSample.forEach(j => console.log(`    [#${j.index}] Job: "${j.name}" -> Status: [${j.status}]`));
+    const jobLink = firstJobRow.locator('a, button').first();
+    if (await jobLink.isVisible().catch(() => false)) {
+      await jobLink.click();
+    } else {
+      await firstJobRow.click();
     }
 
-    // 4. Check Sync Queue if accessible
-    console.log('\n[Module 3: Sync Queue] Checking sync jobs processing queue...');
-    try {
-      await page.goto('/sync-editor/queue', { timeout: 15_000 });
-      await app.waitForPageContent();
-      await app.takeScreenshot('admin', 'status_sync_queue');
+    await page.waitForURL(/\/jobs\/[^/?#]+/, { timeout: 20_000 });
+    await app.waitForPageContent();
+    const jobUrl = page.url();
+    await app.takeScreenshot('admin', 'status_first_job_details');
 
-      const queueRows = page.locator('table tbody tr');
-      const queueCount = await queueRows.count().catch(() => 0);
-      console.log(`- Sync Queue Items Found: ${queueCount}`);
-    } catch (_) {
-      console.log('- Sync Queue route not directly reachable or permissions restricted for current role.');
-    }
+    const isRelevantRequest = (request) => (
+      ['document', 'fetch', 'xhr'].includes(request.resourceType())
+      || /\/api\//i.test(request.url())
+    );
 
-    console.log('\n========================================');
-    console.log('Status Audit Completed Successfully!');
-    console.log('Screenshots saved in pot/check-status/admin/:');
-    console.log('- admin_status_cases.png');
-    console.log('- admin_status_jobs.png');
-    console.log('- admin_status_sync_queue.png');
-    console.log('========================================\n');
+    const checkFeatureButton = async ({ feature, cardTitle, buttonName, destination }) => {
+      const card = page.locator(`div:has-text("${cardTitle}")`).last();
+      const button = page.getByRole('button', { name: buttonName }).first();
+      let listenersAttached = false;
+      const networkErrors = [];
+
+      const onResponse = (response) => {
+        if (response.status() >= 400 && isRelevantRequest(response.request())) {
+          networkErrors.push(`HTTP ${response.status()} ${response.url()}`);
+        }
+      };
+      const onRequestFailed = (request) => {
+        if (isRelevantRequest(request)) {
+          networkErrors.push(`Network request failed ${request.url()}: ${request.failure()?.errorText || 'unknown error'}`);
+        }
+      };
+
+      try {
+        await card.scrollIntoViewIfNeeded();
+        await expect(button, `${feature} button must be visible`).toBeVisible({ timeout: 10_000 });
+        await expect(button, `${feature} button must be enabled`).toBeEnabled({ timeout: 5_000 });
+
+        page.on('response', onResponse);
+        page.on('requestfailed', onRequestFailed);
+        listenersAttached = true;
+
+        await button.click();
+        await page.waitForURL(destination, { timeout: 20_000 });
+        await app.waitForPageContent();
+
+        if (networkErrors.length) {
+          throw new Error(networkErrors.join('; '));
+        }
+
+        const negativePage = page.getByText(
+          /\b404\b|page\s+not\s+found|\bnot\s+found\b|access\s+denied|unauthorized|contact\s+your\s+administrator\s+to\s+request\s+access/i,
+        ).first();
+        if (await negativePage.isVisible({ timeout: 500 }).catch(() => false)) {
+          throw new Error(`${feature} opened a not-found or access-denied page.`);
+        }
+
+        await app.takeScreenshot('admin', `status_${feature}_opened`);
+        console.log(`[Status Check] ${feature} opened: ${page.url()}`);
+      } catch (error) {
+        const reason = networkErrors.length ? networkErrors.join('; ') : error.message;
+        await app.takeScreenshot('admin', `status_${feature}_error`);
+        issues.push(`${feature}: ${reason}`);
+        console.error(`[Status Check] ${feature} check failed: ${reason}`);
+      } finally {
+        if (listenersAttached) {
+          page.off('response', onResponse);
+          page.off('requestfailed', onRequestFailed);
+        }
+      }
+
+      if (page.url() !== jobUrl) {
+        try {
+          await page.goto(jobUrl);
+          await app.waitForPageContent();
+        } catch (error) {
+          await app.takeScreenshot('admin', `status_${feature}_return_error`);
+          issues.push(`${feature}: could not return to job details: ${error.message}`);
+        }
+      }
+    };
+
+    await checkFeatureButton({
+      feature: 'sync_generator',
+      cardTitle: 'Sync Generator',
+      buttonName: /open sync generator|set up sync job|create sync job/i,
+      destination: /\/sync-generator\/[^/]+\/setup/,
+    });
+
+    await checkFeatureButton({
+      feature: 'publish',
+      cardTitle: 'Publish',
+      buttonName: /open publish/i,
+      destination: /\/publish\/[^/]+/,
+    });
+
+    expect(issues, 'Feature button checks encountered errors; see the negative POT screenshots').toEqual([]);
   });
 });

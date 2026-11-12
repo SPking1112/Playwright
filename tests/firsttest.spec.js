@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('../fixtures/test');
 
 // badge = text shown in the sidebar under the user's name (optional; leave out if unknown)
 const roles = [
