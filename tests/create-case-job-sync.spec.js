@@ -197,9 +197,12 @@ test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', (
     const syncGenCard = page.locator('div:has-text("Sync Generator")').last();
     await syncGenCard.scrollIntoViewIfNeeded().catch(() => {});
 
-    const openSyncBtn = page.getByRole('button', { name: /open sync generator|set up sync job|create sync job/i }).first();
-    await expect(openSyncBtn).toBeVisible({ timeout: 15_000 });
-    await openSyncBtn.click();
+    const syncJobActionName = /create sync job|open sync generator|set up sync job/i;
+    const syncJobAction = page.getByRole('button', { name: syncJobActionName })
+      .or(page.getByRole('link', { name: syncJobActionName }))
+      .first();
+    await expect(syncJobAction).toBeVisible({ timeout: 15_000 });
+    await syncJobAction.click();
 
     await page.waitForURL(/\/sync-generator\/[^/]+\/setup/, { timeout: 25_000 });
     await app.waitForPageContent();
@@ -254,6 +257,7 @@ test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', (
     const mediaFileName = path.basename(mediaPath);
     console.log(`[Step 8] Uploading matching media "${mediaFileName}"...`);
     await jobsPage.uploadMedia(mediaPath);
+    await jobsPage.dismissTranscriptLinesDialog();
     await app.waitForPageContent();
     await app.takeScreenshot('admin', 'sync_gen_media_uploaded');
     console.log(`[Step 8] Matching media "${mediaFileName}" uploaded and finalized.`);

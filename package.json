@@ -42,6 +42,7 @@
     "clear:org": "node scripts/cleanup.js org",
     "clear:user": "node scripts/cleanup.js user",
     "clear:case": "node scripts/cleanup.js case",
+    "clear:case-job": "node scripts/cleanup.js case-job",
     "clear:job": "node scripts/cleanup.js job",
     "clear:instance": "node scripts/cleanup.js instance",
     "clear:test-data": "node scripts/cleanup.js test-data",

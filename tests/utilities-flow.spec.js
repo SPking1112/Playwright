@@ -38,11 +38,9 @@ test.describe('Utilities End-to-End Workflow', () => {
 
     const {
       transcript: transcriptPath,
-      media: fullMediaPath,
-      sampleVideo,
+      media: mediaPath,
       exhibits,
     } = getFixtureFilePaths({ requiredExhibits: 1 });
-    const mediaPath = sampleVideo || fullMediaPath;
     const exhibitPath = exhibits[0];
 
     let apiBaseUrl = null;
@@ -93,6 +91,88 @@ test.describe('Utilities End-to-End Workflow', () => {
       await page.screenshot({ path: fullPath, fullPage: false });
       console.log(`[POT Captured] pot/${suiteName}/utilities/${filename}`);
       return fullPath;
+    };
+
+    const collectApiStatuses = (value, statuses = [], context = null) => {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const itemContext = item && typeof item === 'object'
+            ? JSON.stringify(item).toLowerCase()
+            : context;
+          collectApiStatuses(item, statuses, itemContext);
+        }
+      } else if (value && typeof value === 'object') {
+        const statusContext = context || JSON.stringify(value).toLowerCase();
+        for (const [key, nested] of Object.entries(value)) {
+          const normalizedKey = key.toLowerCase().replace(/[^a-z]/g, '');
+          if (
+            ['status', 'state', 'jobstatus', 'orderstatus', 'projectstatus', 'processingstatus'].includes(normalizedKey)
+            && typeof nested === 'string'
+          ) {
+            statuses.push({
+              value: nested.trim().toLowerCase().replace(/[\s_-]+/g, ''),
+              context: statusContext,
+            });
+          }
+          collectApiStatuses(nested, statuses, statusContext);
+        }
+      }
+      return statuses;
+    };
+
+    const completedApiStatuses = new Set([
+      'complete', 'completed', 'finished', 'processed', 'ready', 'readyforreview', 'succeeded',
+    ]);
+    const failedApiStatuses = new Set([
+      'cancelled', 'canceled', 'error', 'errored', 'failed', 'failure', 'rejected',
+    ]);
+
+    const processingStatusesFor = (response, body, operation, productInstanceId) => {
+      const pathName = new URL(response.url()).pathname.toLowerCase();
+      const operationEndpoint = operation === 'Sync'
+        ? /\/sync\/jobs(?:\/|$)/i.test(pathName)
+        : /\/projects(?:\/|$)/i.test(pathName);
+      const triggerRequest = response.request().method() === 'POST';
+      const productName = operation === 'Sync' ? /sync[\s_-]*generator/i : /publish/i;
+      const instanceId = String(productInstanceId || '').toLowerCase();
+
+      return collectApiStatuses(body).filter((entry) => (
+        operationEndpoint
+        || triggerRequest
+        || (instanceId && entry.context.includes(instanceId))
+        || productName.test(entry.context)
+      ));
+    };
+
+    const waitForProcessingApiResponse = (operation, productInstanceId) => page.waitForResponse(
+      async (response) => {
+        const urlPattern = operation === 'Sync'
+          ? /\/(?:sync\/jobs|orders)(?:\/|[?#]|$)/i
+          : /\/(?:orders|projects)(?:\/|[?#]|$)/i;
+        if (!urlPattern.test(response.url())) return false;
+        if (!response.ok()) return true;
+        const body = await response.json().catch(() => null);
+        const statuses = processingStatusesFor(response, body, operation, productInstanceId);
+        return statuses.some((entry) => (
+          completedApiStatuses.has(entry.value) || failedApiStatuses.has(entry.value)
+        ));
+      },
+      { timeout: 30 * 60_000 }
+    );
+
+    const assertProcessingCompleted = async (response, operation, productInstanceId) => {
+      if (!response.ok()) {
+        throw new Error(`${operation} status API failed with HTTP ${response.status()}.`);
+      }
+      const body = await response.json().catch(() => null);
+      const statuses = processingStatusesFor(response, body, operation, productInstanceId);
+      const failedStatus = statuses.find((entry) => failedApiStatuses.has(entry.value));
+      if (failedStatus) {
+        throw new Error(`${operation} processing ended with status "${failedStatus.value}".`);
+      }
+      if (!statuses.some((entry) => completedApiStatuses.has(entry.value))) {
+        throw new Error(`${operation} API response did not report a completed status.`);
+      }
     };
 
     const runStage = async (stageNumber, title, fn) => {
@@ -677,31 +757,11 @@ test.describe('Utilities End-to-End Workflow', () => {
       await transcriptInput.setInputFiles(transcriptPath);
       await transcriptUploadPromise;
 
-      // Handle transcript lines dialog if shown
-      const lineModal = page.locator('div[role="dialog"]:has-text("Set Transcript Lines")').first();
-      if (await lineModal.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await lineModal.locator('.animate-spin').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
-        const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults/i });
-        const closeBtn = lineModal.getByRole('button', { name: /^close$/i });
-        if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await confirmBtn.click();
-        } else if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await closeBtn.click();
-        } else {
-          await page.keyboard.press('Escape');
-        }
-        await expect(lineModal).toBeHidden({ timeout: 5000 });
-      }
+      await jobsPage.dismissTranscriptLinesDialog();
 
       // Upload media
       console.log('Uploading media...');
-      await jobsPage.uploadMedia(mediaPath);
-
-      // Dismiss transcript modal if appeared
-      if (await lineModal.isVisible({ timeout: 1500 }).catch(() => false)) {
-        await page.keyboard.press('Escape');
-        await lineModal.waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
-      }
+      await jobsPage.uploadMedia(mediaPath, () => jobsPage.dismissTranscriptLinesDialog());
 
       // Click Process
       console.log('Starting Sync job processing...');
@@ -709,28 +769,43 @@ test.describe('Utilities End-to-End Workflow', () => {
       await expect(processBtn).toBeVisible({ timeout: 10_000 });
       await expect(processBtn).toBeEnabled({ timeout: 10_000 });
 
+      const syncCompletionPromise = waitForProcessingApiResponse('Sync', syncProductInstanceId);
       const syncProcessPromise = page.waitForResponse(
         (r) => (r.url().includes('/sync/jobs') || r.url().includes('/orders')) && r.request().method() === 'POST',
-        { timeout: 10_000 }
-      ).catch(() => null);
+        { timeout: 30 * 60_000 }
+      );
 
       await processBtn.click();
-      await syncProcessPromise;
+      const [syncProcessResponse, syncCompletionResponse] = await Promise.all([
+        syncProcessPromise,
+        syncCompletionPromise,
+      ]);
+      const syncProcessError = await syncProcessResponse.finished();
+      if (syncProcessError) {
+        throw new Error(`Sync processing API request did not finish: ${syncProcessError.message}`);
+      }
+      if (!syncProcessResponse.ok()) {
+        throw new Error(`Sync processing API failed with HTTP ${syncProcessResponse.status()}.`);
+      }
+      await assertProcessingCompleted(syncCompletionResponse, 'Sync', syncProductInstanceId);
 
+      console.log('Sync completion status received from the API.');
       await appPage.waitForPageContent();
-      await capturePot('11_sync_job_processing');
-      console.log('Sync job process triggered successfully.');
+      await capturePot('11_sync_job_completed');
+      console.log('Sync job completed; screenshot captured.');
+
+      console.log(`Returning to Job details page /jobs/${currentJobId}...`);
+      await page.goto(`/jobs/${currentJobId}`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 3_000,
+      });
+      await expect(page).toHaveURL(new RegExp(`/jobs/${currentJobId}(?:[/?#]|$)`), { timeout: 10_000 });
     });
 
     // =========================================================================
     // STAGE 10: Open Publish, Upload Transcript & Exhibit, and Process Job
     // =========================================================================
     await runStage(10, 'Open Publish, Upload Transcript & Exhibit, and Process Job', async () => {
-      // Navigate back to the Job details page
-      console.log(`Navigating to Job details page /jobs/${currentJobId}...`);
-      await page.goto(`/jobs/${currentJobId}`);
-      await appPage.waitForPageContent();
-
       // Open Publish via TranscriptGeneratorCard
       const publishCard = page.locator('div:has-text("Publish")').last();
       await publishCard.scrollIntoViewIfNeeded().catch(() => {});
@@ -785,20 +860,32 @@ test.describe('Utilities End-to-End Workflow', () => {
 
       // 10C: Click Process in Publish setup
       const publishProcessBtn = page.getByRole('button', { name: /^Process$/i }).first();
-      if (await publishProcessBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        console.log('Clicking Process in Publish setup...');
-        await expect(publishProcessBtn).toBeEnabled({ timeout: 8000 });
-        const publishOrderPromise = page.waitForResponse(
-          (r) => (r.url().includes('/orders') || r.url().includes('/projects')) && r.request().method() === 'POST',
-          { timeout: 8000 }
-        ).catch(() => null);
-        await publishProcessBtn.click();
-        await publishOrderPromise;
+      await expect(publishProcessBtn).toBeVisible({ timeout: 10_000 });
+      console.log('Clicking Process in Publish setup...');
+      await expect(publishProcessBtn).toBeEnabled({ timeout: 8000 });
+      const publishCompletionPromise = waitForProcessingApiResponse('Publish', publishProductInstanceId);
+      const publishOrderPromise = page.waitForResponse(
+        (r) => (r.url().includes('/orders') || r.url().includes('/projects')) && r.request().method() === 'POST',
+        { timeout: 30 * 60_000 }
+      );
+      await publishProcessBtn.click();
+      const [publishProcessResponse, publishCompletionResponse] = await Promise.all([
+        publishOrderPromise,
+        publishCompletionPromise,
+      ]);
+      const publishProcessError = await publishProcessResponse.finished();
+      if (publishProcessError) {
+        throw new Error(`Publish processing API request did not finish: ${publishProcessError.message}`);
       }
+      if (!publishProcessResponse.ok()) {
+        throw new Error(`Publish processing API failed with HTTP ${publishProcessResponse.status()}.`);
+      }
+      await assertProcessingCompleted(publishCompletionResponse, 'Publish', publishProductInstanceId);
 
+      console.log('Publish completion status received from the API.');
       await appPage.waitForPageContent();
-      await capturePot('13_publish_job_processed');
-      console.log('Publish job processed successfully.');
+      await capturePot('13_publish_job_completed');
+      console.log('Publish job completed; screenshot captured.');
     });
 
     // =========================================================================
@@ -824,9 +911,9 @@ test.describe('Utilities End-to-End Workflow', () => {
     console.log(`  pot/${suiteName}/utilities/08_new_user_login.png`);
     console.log(`  pot/${suiteName}/utilities/09_case_created.png`);
     console.log(`  pot/${suiteName}/utilities/10_job_created.png`);
-    console.log(`  pot/${suiteName}/utilities/11_sync_job_processing.png`);
+    console.log(`  pot/${suiteName}/utilities/11_sync_job_completed.png`);
     console.log(`  pot/${suiteName}/utilities/12_publish_inputs_uploaded.png`);
-    console.log(`  pot/${suiteName}/utilities/13_publish_job_processed.png`);
+    console.log(`  pot/${suiteName}/utilities/13_publish_job_completed.png`);
     console.log(`  pot/${suiteName}/utilities/14_new_user_logout.png`);
     console.log(`======================================================\n`);
   });

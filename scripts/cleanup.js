@@ -11,6 +11,7 @@
  *   node scripts/cleanup.js user <query>         # e.g. node scripts/cleanup.js user jo
  *   node scripts/cleanup.js case <query>         # e.g. node scripts/cleanup.js case test
  *   node scripts/cleanup.js job <query>          # e.g. node scripts/cleanup.js job audio
+ *   node scripts/cleanup.js case-job              # Cleans generated Case/Job test data
  *   node scripts/cleanup.js instance <query>     # e.g. node scripts/cleanup.js instance sync
  *   node scripts/cleanup.js test-data            # Cleans all auto-generated test data
  *
@@ -30,8 +31,12 @@ const { baseURL } = require('../env');
 const BASE_URL = baseURL.replace(/\/+$/, '');
 const PLATFORM_EMAIL = process.env.PLATFORM_EMAIL || 'stenoadmin@stenoone.local';
 const PLATFORM_PASSWORD = process.env.PLATFORM_PASSWORD || 'Welcome@123';
+const ORGADMIN_EMAIL = process.env.ORGADMIN_EMAIL;
+const ORGADMIN_PASSWORD = process.env.ORGADMIN_PASSWORD;
 
 let authToken = null;
+let cleanupRole = 'platform';
+let cleanupOrgId = null;
 
 // =============================================================================
 // HTTP & API CLIENT HELPERS
@@ -40,11 +45,22 @@ let authToken = null;
 async function login() {
   if (authToken) return authToken;
 
-  console.log(`🔐 Authenticating as Platform Admin (${PLATFORM_EMAIL})...`);
+  const isOrgAdmin = cleanupRole === 'orgAdmin';
+  const email = isOrgAdmin ? ORGADMIN_EMAIL : PLATFORM_EMAIL;
+  const password = isOrgAdmin ? ORGADMIN_PASSWORD : PLATFORM_PASSWORD;
+  const roleName = isOrgAdmin ? 'Organization Admin' : 'Platform Admin';
+  if (!email || !password) {
+    const requiredVariables = isOrgAdmin
+      ? 'ORGADMIN_EMAIL and ORGADMIN_PASSWORD'
+      : 'PLATFORM_EMAIL and PLATFORM_PASSWORD';
+    throw new Error(`${requiredVariables} must be configured in .env to run this cleanup.`);
+  }
+
+  console.log(`🔐 Authenticating as ${roleName} (${email})...`);
   const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: PLATFORM_EMAIL, password: PLATFORM_PASSWORD }),
+    body: JSON.stringify({ email, password }),
   });
 
   if (!res.ok) {
@@ -67,10 +83,18 @@ async function login() {
       { cause: error }
     );
   }
-  authToken = json?.data?.token || json?.token;
-  if (!authToken) {
+  const token = json?.data?.token || json?.token;
+  if (!token) {
     throw new Error(`Failed to extract auth token from response: ${JSON.stringify(json)}`);
   }
+  if (isOrgAdmin) {
+    const organizations = json?.data?.organizations || [];
+    cleanupOrgId = organizations[0]?.id || organizations[0]?.orgId || json?.data?.orgId || null;
+    if (!cleanupOrgId) {
+      throw new Error('Could not determine the Organization Admin organization ID from the login response.');
+    }
+  }
+  authToken = token;
   console.log(`✓ Authenticated successfully.\n`);
   return authToken;
 }
@@ -110,7 +134,11 @@ async function fetchAllPages(endpoint) {
   while (true) {
     const separator = endpoint.includes('?') ? '&' : '?';
     const res = await apiRequest(`${endpoint}${separator}page=${page}&pageSize=${pageSize}`);
-    if (!res.ok) break;
+    if (!res.ok) {
+      throw new Error(
+        `Failed to list ${endpoint} (HTTP ${res.status}): ${JSON.stringify(res.raw?.errors || res.raw)}`
+      );
+    }
 
     const items = res.data?.items || (Array.isArray(res.data) ? res.data : []);
     if (!items.length) break;
@@ -150,10 +178,11 @@ async function deleteCase(id, name = '') {
   console.log(`\n📁 Cascading Case [${name || id}]:`);
   // Find child jobs
   const jobs = await fetchAllPages(`/jobs?caseId=${id}`);
+  let succeeded = true;
   if (jobs.length > 0) {
     console.log(`  Found ${jobs.length} jobs in case "${name || id}". Deleting child jobs...`);
     for (const job of jobs) {
-      await deleteJob(job.id, job.name);
+      if (!(await deleteJob(job.id, job.name))) succeeded = false;
     }
   }
 
@@ -161,7 +190,7 @@ async function deleteCase(id, name = '') {
   const res = await apiRequest(`/cases/${id}`, { method: 'DELETE' });
   if (res.ok) {
     console.log(`✓ Deleted`);
-    return true;
+    return succeeded;
   } else {
     console.log(`✗ Failed (${res.status}): ${JSON.stringify(res.raw?.errors || res.raw)}`);
     return false;
@@ -335,6 +364,7 @@ async function deleteOrg(id, name = '') {
 async function searchCasesAcrossOrgs(query) {
   const matched = new Map();
   const q = query.toLowerCase();
+  if (cleanupRole === 'orgAdmin') await login();
 
   // 1. Direct GUID lookup
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query)) {
@@ -346,7 +376,10 @@ async function searchCasesAcrossOrgs(query) {
   }
 
   // 2. Fast search on base endpoint
-  const baseRes = await fetchAllPages(`/cases?search=${encodeURIComponent(query)}`);
+  const casesEndpoint = cleanupRole === 'orgAdmin'
+    ? `/cases?orgId=${encodeURIComponent(cleanupOrgId)}&search=${encodeURIComponent(query)}`
+    : `/cases?search=${encodeURIComponent(query)}`;
+  const baseRes = await fetchAllPages(casesEndpoint);
   for (const c of baseRes) {
     if (c?.id && ((c.name && c.name.toLowerCase().includes(q)) || (c.description && c.description.toLowerCase().includes(q)))) {
       matched.set(c.id, c);
@@ -354,7 +387,7 @@ async function searchCasesAcrossOrgs(query) {
   }
 
   // 3. If nothing found yet, check primary org
-  if (matched.size === 0) {
+  if (matched.size === 0 && cleanupRole !== 'orgAdmin') {
     const primaryOrgId = 'a9cadcb9-f8f0-4fba-80ee-25827520d4ce';
     try {
       const orgCases = await fetchAllPages(`/cases?orgId=${primaryOrgId}&search=${encodeURIComponent(query)}`);
@@ -370,6 +403,7 @@ async function searchCasesAcrossOrgs(query) {
 async function searchJobsAcrossOrgs(query) {
   const matched = new Map();
   const q = query.toLowerCase();
+  if (cleanupRole === 'orgAdmin') await login();
 
   // 1. Direct GUID lookup
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query)) {
@@ -381,7 +415,10 @@ async function searchJobsAcrossOrgs(query) {
   }
 
   // 2. Fetch jobs from main jobs endpoint and filter
-  const allJobs = await fetchAllPages('/jobs');
+  const jobsEndpoint = cleanupRole === 'orgAdmin'
+    ? `/jobs?orgId=${encodeURIComponent(cleanupOrgId)}`
+    : '/jobs';
+  const allJobs = await fetchAllPages(jobsEndpoint);
   for (const j of allJobs) {
     if (
       j?.id &&
@@ -394,7 +431,7 @@ async function searchJobsAcrossOrgs(query) {
   }
 
   // 3. If nothing found, check primary org
-  if (matched.size === 0) {
+  if (matched.size === 0 && cleanupRole !== 'orgAdmin') {
     const primaryOrgId = 'a9cadcb9-f8f0-4fba-80ee-25827520d4ce';
     try {
       const orgJobs = await fetchAllPages(`/jobs?orgId=${primaryOrgId}`);
@@ -420,7 +457,7 @@ async function handleCleanJobs(query) {
 
   if (!matched.length) {
     console.log(`🔍 No jobs found matching filter: "${query}"`);
-    return;
+    return true;
   }
 
   console.log(`\nFound ${matched.length} matching job(s):`);
@@ -428,11 +465,13 @@ async function handleCleanJobs(query) {
     console.log(`  [${i + 1}] ${j.name} (ID: ${j.id}, Case: ${j.caseName || 'N/A'}, Org: ${j.orgName || 'Default'})`)
   );
 
+  let succeeded = true;
   console.log(`\nDeleting ${matched.length} job(s)...`);
   for (const job of matched) {
-    await deleteJob(job.id, job.name);
+    if (!(await deleteJob(job.id, job.name))) succeeded = false;
   }
   console.log(`\n🎉 Job cleanup complete.`);
+  return succeeded;
 }
 
 async function handleCleanCases(query) {
@@ -441,7 +480,7 @@ async function handleCleanCases(query) {
 
   if (!matched.length) {
     console.log(`🔍 No cases found matching filter: "${query}"`);
-    return;
+    return true;
   }
 
   console.log(`\nFound ${matched.length} matching case(s):`);
@@ -449,11 +488,13 @@ async function handleCleanCases(query) {
     console.log(`  [${i + 1}] ${c.name} (ID: ${c.id}, Jobs: ${c.jobCount ?? 0}, Org: ${c.orgName || 'Default'})`)
   );
 
+  let succeeded = true;
   console.log(`\nDeleting ${matched.length} case(s)...`);
   for (const c of matched) {
-    await deleteCase(c.id, c.name);
+    if (!(await deleteCase(c.id, c.name))) succeeded = false;
   }
   console.log(`\n🎉 Case cleanup complete.`);
+  return succeeded;
 }
 
 async function handleCleanUsers(query) {
@@ -568,6 +609,26 @@ async function handleCleanAllTestData() {
   console.log(`======================================================\n`);
 }
 
+async function handleCleanGeneratedCasesAndJobs() {
+  cleanupRole = 'orgAdmin';
+  console.log(`\n======================================================`);
+  console.log(`   GENERATED CASE & JOB CLEANUP`);
+  console.log(`   Case_PW_*, Job_PW_*, Case_Util_*, Job_Util_*`);
+  console.log(`======================================================\n`);
+
+  let succeeded = true;
+  for (const jobPrefix of ['Job_PW_', 'Job_Util_']) {
+    if (!(await handleCleanJobs(jobPrefix))) succeeded = false;
+  }
+  for (const casePrefix of ['Case_PW_', 'Case_Util_']) {
+    if (!(await handleCleanCases(casePrefix))) succeeded = false;
+  }
+
+  if (!succeeded) {
+    throw new Error('Generated Case/Job cleanup did not complete successfully.');
+  }
+}
+
 // =============================================================================
 // CLI ARGUMENT PARSER & INTERACTIVE MENU
 // =============================================================================
@@ -617,6 +678,7 @@ async function interactiveMenu() {
   console.log('  [4] Job(s)              - npm run clear:job <name>');
   console.log('  [5] Product Instance(s) - npm run clear:instance <name>');
   console.log('  [6] All Test Data Purge (Util Org*, Case_Util_*, etc.)');
+  console.log('  [7] Generated Cases & Jobs only (Case_PW_*, Job_PW_*, Case_Util_*, Job_Util_*)');
   console.log('\n  [0] Exit');
   console.log('========================================================');
 
@@ -624,7 +686,7 @@ async function interactiveMenu() {
 
   const ask = (q) => new Promise((resolve) => rl.question(q, resolve));
 
-  const choice = (await ask('\nEnter option number (0-6): ')).trim();
+  const choice = (await ask('\nEnter option number (0-7): ')).trim();
 
   if (choice === '0') {
     console.log('Exited.');
@@ -635,6 +697,12 @@ async function interactiveMenu() {
   if (choice === '6') {
     rl.close();
     await handleCleanAllTestData();
+    process.exit(0);
+  }
+
+  if (choice === '7') {
+    rl.close();
+    await handleCleanGeneratedCasesAndJobs();
     process.exit(0);
   }
 
@@ -680,11 +748,18 @@ async function dispatch(entity, query) {
 
     case 'case':
     case 'cases':
+      cleanupRole = 'orgAdmin';
       await handleCleanCases(query);
+      break;
+
+    case 'case-job':
+    case 'casejob':
+      await handleCleanGeneratedCasesAndJobs();
       break;
 
     case 'job':
     case 'jobs':
+      cleanupRole = 'orgAdmin';
       await handleCleanJobs(query);
       break;
 
@@ -702,7 +777,7 @@ async function dispatch(entity, query) {
       break;
 
     default:
-      console.error(`Unknown entity "${entity}". Supported entities: org, user, case, job, instance, test-data`);
+      console.error(`Unknown entity "${entity}". Supported entities: org, user, case, case-job, job, instance, test-data`);
       process.exit(1);
   }
 }
@@ -721,6 +796,11 @@ async function main() {
 
   if (entity === 'test-data' || entity === 'testdata') {
     await handleCleanAllTestData();
+    return;
+  }
+
+  if (entity === 'case-job' || entity === 'casejob') {
+    await handleCleanGeneratedCasesAndJobs();
     return;
   }
 

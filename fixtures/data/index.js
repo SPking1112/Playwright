@@ -186,12 +186,7 @@ function getFixtureFilePaths({ requiredExhibits = 0 } = {}) {
     );
   }
 
-  const sampleVideoPath = path.join(directories.media, 'sample_video.mp4');
-  const sampleVideo = fs.existsSync(sampleVideoPath) && fs.statSync(sampleVideoPath).isFile()
-    ? sampleVideoPath
-    : null;
-
-  return { transcript, media, exhibits, sampleVideo };
+  return { transcript, media, exhibits };
 }
 
 function getMatchingFixturePair(options = {}) {

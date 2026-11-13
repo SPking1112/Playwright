@@ -64,6 +64,7 @@ test.describe('Check Status Automation', () => {
     const checkFeatureButton = async ({ feature, cardTitle, buttonName, destination }) => {
       const card = page.locator(`div:has-text("${cardTitle}")`).last();
       const button = page.getByRole('button', { name: buttonName }).first();
+      const accessUnavailable = card.getByText(/Not Available|Contact your administrator to request access/i).first();
       let listenersAttached = false;
       const networkErrors = [];
 
@@ -80,6 +81,9 @@ test.describe('Check Status Automation', () => {
 
       try {
         await card.scrollIntoViewIfNeeded();
+        if (await accessUnavailable.isVisible({ timeout: 500 }).catch(() => false)) {
+          throw new Error(`${feature} is unavailable to this Organization Admin; product access is not assigned.`);
+        }
         await expect(button, `${feature} button must be visible`).toBeVisible({ timeout: 10_000 });
         await expect(button, `${feature} button must be enabled`).toBeEnabled({ timeout: 5_000 });
 

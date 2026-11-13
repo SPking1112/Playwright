@@ -134,6 +134,15 @@ The following npm scripts run commonly used suites:
 | Dynamic navigation (headless) | `npm run test:dynamic` |
 | Role navigation/POT (headless) | `npm run test:pot` |
 
+To manually remove generated cases and their jobs from the case/job and Utilities flows, run:
+
+```powershell
+npm run clear:case-job
+```
+
+This cleanup targets only names beginning with `Case_PW_`, `Job_PW_`, `Case_Util_`, or `Job_Util_`. It deletes matching jobs first and deletes matching cases with their child jobs; it does not remove organizations or users.
+Case and job cleanup authenticates with `ORGADMIN_EMAIL` / `ORGADMIN_PASSWORD` and limits searches to the organization returned by that account's login. Other cleanup commands continue to use Platform Admin credentials.
+
 To run a specific suite in the interactive runner, start Playwright UI and select the suite:
 
 ```powershell

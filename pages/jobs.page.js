@@ -121,26 +121,44 @@ class JobsPage {
     await expect(transcriptInput).toBeAttached({ timeout: 15_000 });
     await transcriptInput.setInputFiles(transcriptPath);
 
-    // If "Set Transcript Lines" dialog appears, confirm defaults or close it cleanly
-    const lineModal = this.page.locator('div[role="dialog"]:has-text("Set Transcript Lines")').first();
-    if (await lineModal.isVisible({ timeout: 5000 }).catch(() => false)) {
-      const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults/i });
-      const closeBtn = lineModal.getByRole('button', { name: /^close$/i });
-      if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await confirmBtn.click();
-      } else if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await closeBtn.click();
-      } else {
-        await this.page.keyboard.press('Escape');
-      }
-      await expect(lineModal).toBeHidden({ timeout: 10_000 });
-    }
+    await this.dismissTranscriptLinesDialog();
   }
 
-  async uploadMedia(mediaPath) {
+  async dismissTranscriptLinesDialog() {
+    const lineModal = this.page.locator('div[role="dialog"]:has-text("Set Transcript Lines")').first();
+    try {
+      await lineModal.waitFor({ state: 'visible', timeout: 5000 });
+    } catch (error) {
+      if (error.name === 'TimeoutError') return;
+      throw error;
+    }
+
+    const loadingSpinner = lineModal.locator('.animate-spin').first();
+    if (await loadingSpinner.isVisible()) {
+      await loadingSpinner.waitFor({ state: 'detached', timeout: 30_000 });
+    }
+
+    const labeledCloseButton = lineModal.getByRole('button', { name: /^close$/i })
+      .or(lineModal.locator('button[aria-label="Close"], button[title="Close"]'))
+      .first();
+    const closeButton = await labeledCloseButton.isVisible()
+      ? labeledCloseButton
+      : lineModal.getByRole('button').first();
+    await expect(closeButton).toBeVisible({ timeout: 3000 });
+    await closeButton.click();
+    await expect(lineModal).toBeHidden({ timeout: 10_000 });
+  }
+
+  async uploadMedia(mediaPath, afterUpload) {
     const mediaInput = this.page.locator('input[type="file"][accept*=".mp4"], input[type="file"][accept*=".mov"], input[type="file"][accept*=".mpg"]').first();
     await expect(mediaInput).toBeAttached({ timeout: 15_000 });
     await mediaInput.setInputFiles(mediaPath);
+    if (afterUpload) {
+      await afterUpload();
+    }
+
+    const cancelUploadButton = this.page.locator('button[title="Cancel upload"]').first();
+    await cancelUploadButton.waitFor({ state: 'hidden', timeout: 120_000 });
 
     const finalizedSegment = this.page.locator('button[title="Remove media"]').first();
     await expect(finalizedSegment).toBeVisible({ timeout: 120_000 });
