@@ -7,6 +7,7 @@ const { AppPage } = require('../pages/app.page');
 const { getFixtureFilePaths } = require('../fixtures/data');
 const { CasesPage } = require('../pages/cases.page');
 const { JobsPage } = require('../pages/jobs.page');
+const { assertProcessingCompleted, waitForProcessingApiResponse } = require('../utils/processing-api');
 
 /**
  * Generates random alphabetical characters (no digits) for display names
@@ -91,88 +92,6 @@ test.describe('Utilities End-to-End Workflow', () => {
       await page.screenshot({ path: fullPath, fullPage: false });
       console.log(`[POT Captured] pot/${suiteName}/utilities/${filename}`);
       return fullPath;
-    };
-
-    const collectApiStatuses = (value, statuses = [], context = null) => {
-      if (Array.isArray(value)) {
-        for (const item of value) {
-          const itemContext = item && typeof item === 'object'
-            ? JSON.stringify(item).toLowerCase()
-            : context;
-          collectApiStatuses(item, statuses, itemContext);
-        }
-      } else if (value && typeof value === 'object') {
-        const statusContext = context || JSON.stringify(value).toLowerCase();
-        for (const [key, nested] of Object.entries(value)) {
-          const normalizedKey = key.toLowerCase().replace(/[^a-z]/g, '');
-          if (
-            ['status', 'state', 'jobstatus', 'orderstatus', 'projectstatus', 'processingstatus'].includes(normalizedKey)
-            && typeof nested === 'string'
-          ) {
-            statuses.push({
-              value: nested.trim().toLowerCase().replace(/[\s_-]+/g, ''),
-              context: statusContext,
-            });
-          }
-          collectApiStatuses(nested, statuses, statusContext);
-        }
-      }
-      return statuses;
-    };
-
-    const completedApiStatuses = new Set([
-      'complete', 'completed', 'finished', 'processed', 'ready', 'readyforreview', 'succeeded',
-    ]);
-    const failedApiStatuses = new Set([
-      'cancelled', 'canceled', 'error', 'errored', 'failed', 'failure', 'rejected',
-    ]);
-
-    const processingStatusesFor = (response, body, operation, productInstanceId) => {
-      const pathName = new URL(response.url()).pathname.toLowerCase();
-      const operationEndpoint = operation === 'Sync'
-        ? /\/sync\/jobs(?:\/|$)/i.test(pathName)
-        : /\/projects(?:\/|$)/i.test(pathName);
-      const triggerRequest = response.request().method() === 'POST';
-      const productName = operation === 'Sync' ? /sync[\s_-]*generator/i : /publish/i;
-      const instanceId = String(productInstanceId || '').toLowerCase();
-
-      return collectApiStatuses(body).filter((entry) => (
-        operationEndpoint
-        || triggerRequest
-        || (instanceId && entry.context.includes(instanceId))
-        || productName.test(entry.context)
-      ));
-    };
-
-    const waitForProcessingApiResponse = (operation, productInstanceId) => page.waitForResponse(
-      async (response) => {
-        const urlPattern = operation === 'Sync'
-          ? /\/(?:sync\/jobs|orders)(?:\/|[?#]|$)/i
-          : /\/(?:orders|projects)(?:\/|[?#]|$)/i;
-        if (!urlPattern.test(response.url())) return false;
-        if (!response.ok()) return true;
-        const body = await response.json().catch(() => null);
-        const statuses = processingStatusesFor(response, body, operation, productInstanceId);
-        return statuses.some((entry) => (
-          completedApiStatuses.has(entry.value) || failedApiStatuses.has(entry.value)
-        ));
-      },
-      { timeout: 30 * 60_000 }
-    );
-
-    const assertProcessingCompleted = async (response, operation, productInstanceId) => {
-      if (!response.ok()) {
-        throw new Error(`${operation} status API failed with HTTP ${response.status()}.`);
-      }
-      const body = await response.json().catch(() => null);
-      const statuses = processingStatusesFor(response, body, operation, productInstanceId);
-      const failedStatus = statuses.find((entry) => failedApiStatuses.has(entry.value));
-      if (failedStatus) {
-        throw new Error(`${operation} processing ended with status "${failedStatus.value}".`);
-      }
-      if (!statuses.some((entry) => completedApiStatuses.has(entry.value))) {
-        throw new Error(`${operation} API response did not report a completed status.`);
-      }
     };
 
     const runStage = async (stageNumber, title, fn) => {
@@ -769,7 +688,7 @@ test.describe('Utilities End-to-End Workflow', () => {
       await expect(processBtn).toBeVisible({ timeout: 10_000 });
       await expect(processBtn).toBeEnabled({ timeout: 10_000 });
 
-      const syncCompletionPromise = waitForProcessingApiResponse('Sync', syncProductInstanceId);
+      const syncCompletionPromise = waitForProcessingApiResponse(page, 'Sync', syncProductInstanceId);
       const syncProcessPromise = page.waitForResponse(
         (r) => (r.url().includes('/sync/jobs') || r.url().includes('/orders')) && r.request().method() === 'POST',
         { timeout: 30 * 60_000 }
@@ -863,7 +782,7 @@ test.describe('Utilities End-to-End Workflow', () => {
       await expect(publishProcessBtn).toBeVisible({ timeout: 10_000 });
       console.log('Clicking Process in Publish setup...');
       await expect(publishProcessBtn).toBeEnabled({ timeout: 8000 });
-      const publishCompletionPromise = waitForProcessingApiResponse('Publish', publishProductInstanceId);
+      const publishCompletionPromise = waitForProcessingApiResponse(page, 'Publish', publishProductInstanceId);
       const publishOrderPromise = page.waitForResponse(
         (r) => (r.url().includes('/orders') || r.url().includes('/projects')) && r.request().method() === 'POST',
         { timeout: 30 * 60_000 }

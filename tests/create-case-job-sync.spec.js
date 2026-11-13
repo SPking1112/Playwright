@@ -5,6 +5,7 @@ const { test, expect } = require('../fixtures/test');
 const { LoginPage } = require('../pages/login.page');
 const { AppPage } = require('../pages/app.page');
 const { JobsPage } = require('../pages/jobs.page');
+const { assertProcessingCompleted, waitForProcessingApiResponse } = require('../utils/processing-api');
 
 test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', () => {
   test('Create Case and Job, upload matching transcript and media, and process sync', async ({ page }) => {
@@ -268,13 +269,17 @@ test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', (
     await expect(processButton).toBeVisible({ timeout: 15_000 });
     await expect(processButton).toBeEnabled({ timeout: 15_000 });
 
+    const completionResponsePromise = waitForProcessingApiResponse(page, 'Sync');
     const processResponsePromise = page.waitForResponse(
       (response) => (response.url().includes('/sync/jobs') || response.url().includes('/orders'))
         && response.request().method() === 'POST',
-      { timeout: 30_000 },
+      { timeout: 30 * 60_000 },
     );
     await processButton.click();
-    const processResponse = await processResponsePromise;
+    const [processResponse, completionResponse] = await Promise.all([
+      processResponsePromise,
+      completionResponsePromise,
+    ]);
     const processResponseError = await processResponse.finished();
     if (processResponseError) {
       throw new Error(`Sync processing request did not finish: ${processResponseError.message}`);
@@ -282,12 +287,13 @@ test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', (
     if (!processResponse.ok()) {
       throw new Error(`Sync processing API failed with HTTP ${processResponse.status()}.`);
     }
+    await assertProcessingCompleted(completionResponse, 'Sync');
 
     await app.waitForPageContent();
-    await app.takeScreenshot('admin', 'sync_job_processing');
+    await app.takeScreenshot('admin', 'sync_job_completed');
 
     console.log('\n========================================');
-    console.log('Sync processing request accepted successfully.');
+    console.log('Sync job completed successfully.');
     console.log(`- Matching Base Name: ${matchingBaseName}`);
     console.log(`- Transcript: ${transcriptFileName}`);
     console.log(`- Media: ${mediaFileName}`);
@@ -297,7 +303,7 @@ test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', (
     console.log('- admin_sync_gen_setup.png');
     console.log('- admin_sync_gen_transcript_uploaded.png');
     console.log('- admin_sync_gen_media_uploaded.png');
-    console.log('- admin_sync_job_processing.png');
+    console.log('- admin_sync_job_completed.png');
     console.log('========================================\n');
   });
 });
