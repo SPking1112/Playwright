@@ -91,21 +91,27 @@ function getTestAssetPaths() {
     throw new Error(`TEST_ASSETS_DIR must point outside the repository: ${root}`);
   }
 
-  const directories = {
-    root,
-    media: path.join(root, 'media'),
-    transcripts: path.join(root, 'transcripts'),
-    exhibits: path.join(root, 'exhibits'),
+  const resolveDirectory = (name, candidates) => {
+    const paths = candidates.map((candidate) => path.join(root, candidate));
+    const directory = paths.find((candidate) =>
+      fs.existsSync(candidate) && fs.statSync(candidate).isDirectory());
+    if (directory) return directory;
+
+    const existingPath = paths.find((candidate) => fs.existsSync(candidate));
+    if (existingPath) {
+      throw new Error(`External ${name} asset path is not a directory: ${existingPath}`);
+    }
+    throw new Error(
+      `Missing external ${name} asset directory: expected one of ${paths.join(', ')}`,
+    );
   };
 
-  for (const [name, directory] of Object.entries(directories).slice(1)) {
-    if (!fs.existsSync(directory)) {
-      throw new Error(`Missing external ${name} asset directory: ${directory}`);
-    }
-    if (!fs.statSync(directory).isDirectory()) {
-      throw new Error(`External ${name} asset path is not a directory: ${directory}`);
-    }
-  }
+  const directories = {
+    root,
+    media: resolveDirectory('media', ['media', 'medias']),
+    transcripts: resolveDirectory('transcripts', ['transcripts', 'transcript']),
+    exhibits: resolveDirectory('exhibits', ['exhibits']),
+  };
 
   return directories;
 }

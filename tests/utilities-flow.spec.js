@@ -36,6 +36,15 @@ test.describe('Utilities End-to-End Workflow', () => {
     expect(platformEmail, 'PLATFORM_EMAIL must be configured in .env').toBeTruthy();
     expect(platformPassword, 'PLATFORM_PASSWORD must be configured in .env').toBeTruthy();
 
+    const {
+      transcript: transcriptPath,
+      media: fullMediaPath,
+      sampleVideo,
+      exhibits,
+    } = getFixtureFilePaths({ requiredExhibits: 1 });
+    const mediaPath = sampleVideo || fullMediaPath;
+    const exhibitPath = exhibits[0];
+
     let apiBaseUrl = null;
     let authToken = null;
     const apiRequestJson = async (endpoint, options = {}) => {
@@ -642,9 +651,6 @@ test.describe('Utilities End-to-End Workflow', () => {
     // STAGE 9: Go to Sync and Process a Job
     // =========================================================================
     await runStage(9, 'Sync Generator: Upload Files and Process Job', async () => {
-      const { transcript: transcriptPath, media: fullMediaPath, sampleVideo } = getFixtureFilePaths();
-      const mediaPath = sampleVideo || fullMediaPath;
-
       console.log(`Using Transcript: ${transcriptPath}`);
       console.log(`Using Media: ${mediaPath}`);
 
@@ -675,29 +681,21 @@ test.describe('Utilities End-to-End Workflow', () => {
       const lineModal = page.locator('div[role="dialog"]:has-text("Set Transcript Lines")').first();
       if (await lineModal.isVisible({ timeout: 2000 }).catch(() => false)) {
         await lineModal.locator('.animate-spin').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
-        const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults|close/i }).first();
+        const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults/i });
+        const closeBtn = lineModal.getByRole('button', { name: /^close$/i });
         if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await confirmBtn.click().catch(() => {});
+          await confirmBtn.click();
+        } else if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await closeBtn.click();
         } else {
           await page.keyboard.press('Escape');
         }
-        await lineModal.waitFor({ state: 'detached', timeout: 5000 }).catch(() => page.keyboard.press('Escape'));
+        await expect(lineModal).toBeHidden({ timeout: 5000 });
       }
 
       // Upload media
       console.log('Uploading media...');
-      const mediaInput = page.locator('input[type="file"][accept*=".mp4"], input[type="file"][accept*=".mov"], input[type="file"][accept*=".mpg"]').first();
-      await expect(mediaInput).toBeAttached({ timeout: 8000 });
-      await mediaInput.setInputFiles(mediaPath);
-
-      // Wait for media upload progress to finish
-      const cancelBtn = page.locator('button[title="Cancel upload"]').first();
-      if (await cancelBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-        await cancelBtn.waitFor({ state: 'detached', timeout: 20_000 }).catch(() => {});
-      }
-
-      const finalizedMedia = page.locator('button[title="Remove media"]').first();
-      await expect(finalizedMedia).toBeVisible({ timeout: 20_000 });
+      await jobsPage.uploadMedia(mediaPath);
 
       // Dismiss transcript modal if appeared
       if (await lineModal.isVisible({ timeout: 1500 }).catch(() => false)) {
@@ -728,9 +726,6 @@ test.describe('Utilities End-to-End Workflow', () => {
     // STAGE 10: Open Publish, Upload Transcript & Exhibit, and Process Job
     // =========================================================================
     await runStage(10, 'Open Publish, Upload Transcript & Exhibit, and Process Job', async () => {
-      const { transcript: transcriptPath, exhibits } = getFixtureFilePaths({ requiredExhibits: 1 });
-      const exhibitPath = exhibits[0];
-
       // Navigate back to the Job details page
       console.log(`Navigating to Job details page /jobs/${currentJobId}...`);
       await page.goto(`/jobs/${currentJobId}`);

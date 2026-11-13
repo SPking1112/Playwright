@@ -2,7 +2,7 @@
 
 ## UI target
 
-`D:\Work\Stenograph%20One%20UI` is a Vite React web application. Its dev server is configured for:
+The Stenograph One UI source project is a Vite React web application. Start its dev server from that project's directory; the expected local URL is:
 
 ```text
 http://127.0.0.1:8080
@@ -10,17 +10,17 @@ http://127.0.0.1:8080
 
 The standalone Playwright project does not import the UI source. It connects to the running dev server through `BASE_URL`.
 
-Start the UI first:
+Start the UI first from the Stenograph One UI source directory:
 
 ```powershell
-cd 'D:\Work\Stenograph%20One%20UI'
+cd 'D:\path\to\Stenograph One UI'
 npm run dev
 ```
 
 Set `BASE_URL` in the Playwright project's `.env` file to the target above, then in another terminal run:
 
 ```powershell
-cd 'D:\Work\playwright'
+cd 'D:\path\to\Playwright'
 npm test
 ```
 

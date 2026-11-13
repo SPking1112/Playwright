@@ -43,7 +43,7 @@ Edit `.env` and provide values for:
 - `MANAGER_EMAIL` and `MANAGER_PASSWORD`, `BILLING_EMAIL` and `BILLING_PASSWORD`, `REPORTER_EMAIL` and `REPORTER_PASSWORD`, `MEMBER_EMAIL` and `MEMBER_PASSWORD`: required by suites that test those roles.
 - `TEST_ASSETS_DIR`: absolute path to the external asset root described below.
 
-The `.env.example` intentionally leaves `BASE_URL` and credentials blank. Use only approved test accounts and a test environment; several suites create or modify application data. Optional navigation smoke-test settings are `NAVIGATION_LABEL` and `NAVIGATION_PATH`.
+The `.env.example` leaves `BASE_URL` and credentials blank. Set `BASE_URL` to the intended local or approved test target before running. Use only approved test accounts and a test environment; several suites create or modify application data. Optional navigation smoke-test settings are `NAVIGATION_LABEL` and `NAVIGATION_PATH`.
 
 ## External test assets
 
@@ -57,20 +57,21 @@ The external directory must have this structure:
 
 ```text
 <TEST_ASSETS_DIR>\
-├── media\
-├── transcripts\
+├── media\ or medias\
+├── transcripts\ or transcript\
 └── exhibits\
 ```
 
 Prepare the files in the matching folders:
 
-- `transcripts\`: supported transcript files such as `.txt`, `.mdb`, `.ytg`, or `.xmef`. `Sullivan.txt` is preferred when present.
-- `media\`: supported media files such as `.mp4`, `.mov`, `.mpg`, `.mpeg`, `.wav`, `.mp3`, `.wma`, `.m4a`, or `.sgmca`. `Sullivan1.mp4` is preferred when present; `sample_video.mp4` is an optional faster alternative for the Utilities flow.
+- `transcripts\` or `transcript\`: supported transcript files such as `.txt`, `.mdb`, `.ytg`, or `.xmef`. `Sullivan.txt` is preferred when present.
+- `media\` or `medias\`: supported media files such as `.mp4`, `.mov`, `.mpg`, `.mpeg`, `.wav`, `.mp3`, `.wma`, `.m4a`, or `.sgmca`. `Sullivan1.mp4` is preferred when present; `sample_video.mp4` is an optional faster alternative for the Utilities flow.
 - `exhibits\`: supported exhibit files such as `.pdf`, `.jpg`, `.jpeg`, `.png`, `.tif`, or `.tiff`. The artifact-upload suite requires at least two; the Utilities publish flow requires at least one.
 
 Matching-file tests require a transcript and media file with the same base filename. The helper prefers a pair matching `DYNAMIC_PAIR_NAME` or the current job name when that pair exists; otherwise it selects an available matching pair. The existing `eberline.txt` and `eberline.mpg` names are the documented default pair.
 
 The asset helper fails with a clear error if `TEST_ASSETS_DIR`, one of its three directories, or a required asset is missing. It does not search Downloads, repository fixture folders, or generate/stage asset copies.
+The Utilities end-to-end workflow validates its required assets before logging in or creating application data.
 
 Never commit media, audio, transcript, or exhibit files to Git. Keep them in an external location and share or provision them separately. `fixtures/data/` contains only test-data definitions and helper code; it is not an asset directory.
 
@@ -79,7 +80,7 @@ Never commit media, audio, transcript, or exhibit files to Git. Keep them in an 
 Start the application before running browser tests. For the local Vite target documented in [LOCAL_TARGETS.md](./LOCAL_TARGETS.md), start its frontend in a separate terminal:
 
 ```powershell
-Set-Location 'D:\Work\Stenograph%20One%20UI'
+Set-Location 'D:\path\to\Stenograph One UI'
 npm run dev
 ```
 
@@ -110,6 +111,7 @@ npx playwright test tests/create-case-job-sync.spec.js --headed
 ```
 
 `npm test` runs only the role-navigation POT suite; use `npx playwright test` (or `npm run test:all`) for all configured tests.
+The suites share test accounts and application data, so Playwright is configured to run one worker at a time.
 
 POT screenshots are grouped by test-suite filename, then role, to avoid different suites overwriting one another. For example, role-navigation screenshots are saved under `pot/role-navigation-pot/admin/`, while Utilities workflow screenshots are saved under `pot/utilities-flow/utilities/`.
 

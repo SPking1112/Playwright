@@ -4,6 +4,7 @@ const fs = require('fs');
 const { test, expect } = require('../fixtures/test');
 const { LoginPage } = require('../pages/login.page');
 const { AppPage } = require('../pages/app.page');
+const { JobsPage } = require('../pages/jobs.page');
 
 test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', () => {
   test('Create Case and Job, upload matching transcript and media, and process sync', async ({ page }) => {
@@ -11,6 +12,7 @@ test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', (
 
     const login = new LoginPage(page);
     const app = new AppPage(page);
+    const jobsPage = new JobsPage(page);
 
     const email = process.env.ORGADMIN_EMAIL;
     const password = process.env.ORGADMIN_PASSWORD;
@@ -244,38 +246,14 @@ test.describe('End-to-End: Create Case, Job, Upload Files & Process Sync Job', (
     // 8. Upload the transcript and media pair with matching base names
     const transcriptFileName = path.basename(transcriptPath);
     console.log(`\n[Step 7] Uploading matching transcript "${transcriptFileName}"...`);
-    const transcriptInput = page.locator(
-      'input[type="file"][accept*=".txt"], input[type="file"][accept*=".mdb"], input[type="file"][accept*=".ytg"], input[type="file"][accept*=".xmef"], input[type="file"]'
-    ).first();
-    await expect(transcriptInput).toBeAttached({ timeout: 15_000 });
-    await transcriptInput.setInputFiles(transcriptPath);
-
-    const lineModal = page.locator('div[role="dialog"]:has-text("Set Transcript Lines")').first();
-    if (await lineModal.isVisible({ timeout: 5000 }).catch(() => false)) {
-      const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults|save|confirm|close/i }).first();
-      await expect(confirmBtn).toBeVisible({ timeout: 5000 });
-      await confirmBtn.click();
-      await lineModal.waitFor({ state: 'detached', timeout: 10_000 });
-    }
-
+    await jobsPage.uploadTranscript(transcriptPath);
     await app.waitForPageContent();
     await app.takeScreenshot('admin', 'sync_gen_transcript_uploaded');
     console.log(`[Step 7] Matching transcript "${transcriptFileName}" uploaded.`);
 
     const mediaFileName = path.basename(mediaPath);
     console.log(`[Step 8] Uploading matching media "${mediaFileName}"...`);
-    const mediaInput = page.locator(
-      'input[type="file"][accept*=".mp4"], input[type="file"][accept*=".mov"], input[type="file"][accept*=".mpg"], input[type="file"][accept*=".mpeg"]'
-    ).first();
-    await expect(mediaInput).toBeAttached({ timeout: 15_000 });
-    await mediaInput.setInputFiles(mediaPath);
-
-    const cancelUploadButton = page.locator('button[title="Cancel upload"]').first();
-    if (await cancelUploadButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await cancelUploadButton.waitFor({ state: 'detached', timeout: 0 });
-    }
-    await expect(page.locator('button[title="Remove media"]').first()).toBeVisible({ timeout: 0 });
-
+    await jobsPage.uploadMedia(mediaPath);
     await app.waitForPageContent();
     await app.takeScreenshot('admin', 'sync_gen_media_uploaded');
     console.log(`[Step 8] Matching media "${mediaFileName}" uploaded and finalized.`);

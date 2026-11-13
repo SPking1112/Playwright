@@ -117,9 +117,16 @@ test.describe('Sync Generator - Org Admin Upload Transcript and Media', () => {
       console.log('[SyncGen Test] Set Transcript Lines modal appeared. Capturing screenshot and saving...');
       await app.takeScreenshot('admin', 'sync_gen_transcript_lines_modal');
 
-      const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults|save|close/i }).first();
-      await confirmBtn.click();
-      await page.waitForTimeout(1000);
+      const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults/i });
+      const closeBtn = lineModal.getByRole('button', { name: /^close$/i });
+      if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await confirmBtn.click();
+      } else if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await closeBtn.click();
+      } else {
+        await page.keyboard.press('Escape');
+      }
+      await expect(lineModal).toBeHidden({ timeout: 10_000 });
     }
 
     await app.waitForPageContent();
@@ -137,14 +144,9 @@ test.describe('Sync Generator - Org Admin Upload Transcript and Media', () => {
     await page.waitForTimeout(2000);
     await app.takeScreenshot('admin', 'sync_gen_media_uploading');
 
-    // Wait for upload progress / completion with no timeout
-    console.log('[SyncGen Test] Waiting for media upload to finalize (no timeout)...');
-    const cancelUploadBtn = page.locator('button[title="Cancel upload"]').first();
-    if (await cancelUploadBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await cancelUploadBtn.waitFor({ state: 'detached', timeout: 0 });
-    }
+    console.log('[SyncGen Test] Waiting for media upload to finalize...');
     const removeMediaBtn = page.locator('button[title="Remove media"]').first();
-    await expect(removeMediaBtn).toBeVisible({ timeout: 0 });
+    await expect(removeMediaBtn).toBeVisible({ timeout: 120_000 });
 
     await app.waitForPageContent();
     await app.takeScreenshot('admin', 'sync_gen_media_uploaded');

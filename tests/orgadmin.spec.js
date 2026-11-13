@@ -195,13 +195,11 @@ test.describe('Organization Admin RBAC Automation', () => {
             headers: authHeaders,
             data: { resource: 'TestResource', action: 'TestAction' }
         });
-        const permissionsContentType = (permCreateRes.headers()['content-type'] || '').toLowerCase();
-        test.skip(
-            !permissionsContentType.includes('json'),
-            `POST /api/v1/permissions returned non-JSON content (${permissionsContentType || 'no content type'}); verify the API route and target.`,
-        );
         console.log(`[API CHECK] POST /api/v1/permissions (Unauthorized) -> Status: ${permCreateRes.status()}`);
-        expect(permCreateRes.status()).toBe(403);
+        expect(
+            permCreateRes.status(),
+            'POST /api/v1/permissions must reject the Organization Admin request with HTTP 403.',
+        ).toBe(403);
 
         // 7. Organization: Create (Denied -> Backend must reject with 403)
         const orgCreateRes = await request.post(`${API_BASE_URL}/orgs`, {

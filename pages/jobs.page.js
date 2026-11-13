@@ -83,10 +83,10 @@ class JobsPage {
   }
 
   async importArtifactsViaShowArtifacts(maxCount = 2) {
-    const exhibitsSection = this.page.locator('div:has-text("Exhibits")').last();
-    await exhibitsSection.scrollIntoViewIfNeeded().catch(() => {});
-
-    const showArtifactsBtn = exhibitsSection.getByRole('button', { name: /show artifacts/i }).first();
+    const showArtifactsButtons = this.page.getByRole('button', { name: /show artifacts/i });
+    await expect(showArtifactsButtons).toHaveCount(3);
+    const showArtifactsBtn = showArtifactsButtons.nth(2);
+    await showArtifactsBtn.scrollIntoViewIfNeeded();
     await expect(showArtifactsBtn).toBeVisible({ timeout: 10_000 });
     await showArtifactsBtn.click();
 
@@ -124,13 +124,16 @@ class JobsPage {
     // If "Set Transcript Lines" dialog appears, confirm defaults or close it cleanly
     const lineModal = this.page.locator('div[role="dialog"]:has-text("Set Transcript Lines")').first();
     if (await lineModal.isVisible({ timeout: 5000 }).catch(() => false)) {
-      const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults|save|confirm|close/i }).first();
+      const confirmBtn = lineModal.getByRole('button', { name: /confirm defaults/i });
+      const closeBtn = lineModal.getByRole('button', { name: /^close$/i });
       if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await confirmBtn.click().catch(() => {});
+        await confirmBtn.click();
+      } else if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await closeBtn.click();
       } else {
         await this.page.keyboard.press('Escape');
       }
-      await lineModal.waitFor({ state: 'detached', timeout: 5000 }).catch(() => this.page.keyboard.press('Escape'));
+      await expect(lineModal).toBeHidden({ timeout: 10_000 });
     }
   }
 
@@ -139,14 +142,8 @@ class JobsPage {
     await expect(mediaInput).toBeAttached({ timeout: 15_000 });
     await mediaInput.setInputFiles(mediaPath);
 
-    // Dynamically wait until upload progress finishes
-    const cancelBtn = this.page.locator('button[title="Cancel upload"]').first();
-    if (await cancelBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await cancelBtn.waitFor({ state: 'detached', timeout: 0 });
-    }
-
     const finalizedSegment = this.page.locator('button[title="Remove media"]').first();
-    await expect(finalizedSegment).toBeVisible({ timeout: 60_000 });
+    await expect(finalizedSegment).toBeVisible({ timeout: 120_000 });
   }
 }
 
